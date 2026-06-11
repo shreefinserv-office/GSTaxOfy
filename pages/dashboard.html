@@ -177,14 +177,11 @@ const iconMap = {
     }
 
     // Metrics
-    const [{ count: clientCount }, { count: taskPending }, { count: taskOverdue }] = await Promise.all([
-        _supabase.from('clients').select('*', { count:'exact', head:true }).eq('is_active', true),
-        _supabase.from('tasks').select('*', { count:'exact', head:true }).eq('status', 'Pending').catch(() => ({ count: 0 })),
-        _supabase.from('tasks').select('*', { count:'exact', head:true }).eq('status', 'Overdue').catch(() => ({ count: 0 }))
-    ]);
-    document.getElementById('metricClients').textContent  = clientCount ?? 0;
-    document.getElementById('metricPending').textContent  = taskPending ?? 0;
-    document.getElementById('metricOverdue').textContent  = taskOverdue ?? 0;
+    const { count: clientCount } = await _supabase
+        .from('clients').select('*', { count:'exact', head:true }).eq('is_active', true);
+    document.getElementById('metricClients').textContent = clientCount ?? 0;
+    document.getElementById('metricPending').textContent = '—';
+    document.getElementById('metricOverdue').textContent = '—';
 
     await loadPortals();
 
