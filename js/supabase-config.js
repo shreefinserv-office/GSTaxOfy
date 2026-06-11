@@ -17,7 +17,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // For local development (Live Server / python -m http.server):
 //   set BASE = ''
 // ─────────────────────────────────────────────
-const BASE = '/GStaxOfy';   // ← change to '' for local dev
+const BASE = '/GSTaxOfy';   // ← change to '' for local dev
 
 // Supabase JS v2 client
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
