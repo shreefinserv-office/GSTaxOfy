@@ -20,6 +20,7 @@ function renderSidebar(activePage) {
                 <a class="sub-menu-item" href="${r.users()}"><i class="fas fa-users"></i>Users</a>
                 <a class="sub-menu-item" href="${r.clients()}"><i class="fas fa-user-tie"></i>Clients</a>
                 <a class="sub-menu-item" href="${r.services()}"><i class="fas fa-list-check"></i>Services</a>
+                <a class="sub-menu-item" href="${r.backup()}"><i class="fas fa-database"></i>Backup & Restore</a>
             </div>
         </li>
         <li class="nav-item">
