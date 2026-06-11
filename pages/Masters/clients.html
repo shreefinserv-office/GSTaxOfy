@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GStaxOfy — Clients</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <style>
+        .import-zone {
+            border: 2px dashed #d1d5db; border-radius: 12px;
+            padding: 30px; text-align: center; cursor: pointer;
+            transition: all .2s; background: #fafafa;
+        }
+        .import-zone:hover, .import-zone.dragover {
+            border-color: #2563eb; background: #eff6ff;
+        }
+        .import-zone i { font-size: 32px; color: #9ca3af; margin-bottom: 10px; display: block; }
+        .import-zone.dragover i { color: #2563eb; }
+        .import-preview { max-height: 240px; overflow-y: auto; margin-top: 16px; }
+        .import-row-ok  { background: #f0fdf4; }
+        .import-row-err { background: #fef2f2; }
+        .checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 8px; }
+        .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+            background: #f9fafb; border-radius: 8px; font-size: 13px; cursor: pointer;
+            border: 1.5px solid transparent; transition: all .15s; }
+        .checkbox-item:hover { border-color: #2563eb; background: #eff6ff; }
+        .checkbox-item input[type=checkbox] { accent-color: #2563eb; width: 15px; height: 15px; }
+        .checkbox-item.checked { border-color: #2563eb; background: #eff6ff; }
+    </style>
+    <link rel="manifest" href="../../manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GStaxOfy">
+    <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+</head>
+<body>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo"><img src="../../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="ca-logo-text" style="display:none">CA</span></div>
+            <div class="company-info"><h1 id="firmNameHeader">GStaxOfy</h1><p>GSTaxOfy</p></div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+            </div>
+        </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-user-tie"></i> Clients</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="Search name, PAN, mobile…" oninput="filterClients()">
+                    </div>
+                    <a id="templateDownloadBtn" href="https://raw.githubusercontent.com/shreefinserv-office/GStaxOfy/main/assets/client-import-template.xlsx"
+                       download class="btn btn-secondary btn-sm"><i class="fas fa-download"></i> Excel Template</a>
+                    <button class="btn btn-secondary btn-sm" onclick="openModal('importModal')"><i class="fas fa-file-excel" style="color:#16a34a"></i> Import Excel</button>
+                    <button class="btn btn-primary" onclick="openAddModal()"><i class="fas fa-plus"></i> Add Client</button>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr><th>#</th><th>Name</th><th>PAN</th><th>Contact</th><th>Email</th><th>GST</th><th>Services</th><th>Status</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="clientBody">
+                        <tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- ADD / EDIT CLIENT MODAL -->
+<div class="modal-overlay" id="clientModal">
+    <div class="modal-box" style="max-width:680px">
+        <div class="modal-header">
+            <span class="modal-title" id="clientModalTitle"><i class="fas fa-user-plus" style="color:#2563eb;margin-right:8px"></i>Add Client</span>
+            <button class="modal-close" onclick="closeClientModal()">&times;</button>
+        </div>
+        <input type="hidden" id="c_id">
+
+        <div class="form-grid">
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Full Name *</label>
+                <input type="text" id="c_name" placeholder="e.g. Rajesh Kumar Sharma">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Address</label>
+                <input type="text" id="c_address" placeholder="Full address">
+            </div>
+            <div class="form-group">
+                <label>Contact No. *</label>
+                <input type="tel" id="c_contact" placeholder="10-digit mobile" maxlength="10">
+            </div>
+            <div class="form-group">
+                <label>Email ID</label>
+                <input type="email" id="c_email" placeholder="client@email.com">
+            </div>
+            <div class="form-group">
+                <label>PAN Card No. *</label>
+                <input type="text" id="c_pan" placeholder="ABCDE1234F" maxlength="10"
+                    style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group">
+                <label>Aadhaar Card No.</label>
+                <input type="text" id="c_aadhar" placeholder="12-digit Aadhaar" maxlength="12">
+            </div>
+            <div class="form-group">
+                <label>Date of Birth</label>
+                <input type="date" id="c_dob">
+            </div>
+            <div class="form-group" style="display:flex;flex-direction:column;justify-content:flex-end">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#374151;font-size:13px">
+                    <input type="checkbox" id="c_is_gst" onchange="toggleGSTField()" style="accent-color:#2563eb;width:16px;height:16px">
+                    Is GST Registered?
+                </label>
+            </div>
+            <div class="form-group" id="gstNoGroup" style="display:none">
+                <label>GST No. *</label>
+                <input type="text" id="c_gst_no" placeholder="22AAAAA0000A1Z5" maxlength="15"
+                    style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+            </div>
+        </div>
+
+        <!-- Services -->
+        <div style="margin-top:16px">
+            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:10px">
+                <i class="fas fa-list-check" style="color:#2563eb;margin-right:6px"></i>Services
+            </label>
+            <div class="checkbox-grid" id="servicesCheckboxGrid">
+                <span class="text-muted">Loading services…</span>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeClientModal()">Cancel</button>
+            <button class="btn btn-primary" id="clientSubmitBtn" onclick="saveClient()"><i class="fas fa-save"></i> Save Client</button>
+        </div>
+    </div>
+</div>
+
+<!-- IMPORT EXCEL MODAL -->
+<div class="modal-overlay" id="importModal">
+    <div class="modal-box" style="max-width:700px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-file-excel" style="color:#16a34a;margin-right:8px"></i>Import Clients from Excel</span>
+            <button class="modal-close" onclick="closeModal('importModal')">&times;</button>
+        </div>
+
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#92400e">
+            <i class="fas fa-info-circle" style="margin-right:6px"></i>
+            Download the Excel template first, fill it, then upload here. If any PAN already exists in the system the entire import will stop.
+        </div>
+
+        <div class="import-zone" id="importZone" onclick="document.getElementById('excelFile').click()"
+             ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <p style="font-size:15px;font-weight:600;color:#374151;margin-bottom:4px">Click to upload or drag & drop</p>
+            <p style="font-size:12px;color:#9ca3af">.xlsx or .xls files only</p>
+        </div>
+        <input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
+
+        <div id="importPreviewSection" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:8px">
+                <span style="font-size:13px;font-weight:700;color:#374151" id="importSummary"></span>
+                <button class="btn btn-secondary btn-sm" onclick="clearImport()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+            <div class="import-preview table-wrapper">
+                <table>
+                    <thead><tr><th>#</th><th>Name</th><th>PAN</th><th>Contact</th><th>Status</th></tr></thead>
+                    <tbody id="importPreviewBody"></tbody>
+                </table>
+            </div>
+            <div id="importErrorBox" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;margin-top:12px;font-size:13px;color:#991b1b"></div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('importModal')">Cancel</button>
+            <button class="btn btn-success" id="importBtn" onclick="runImport()" disabled><i class="fas fa-upload"></i> Import Clients</button>
+        </div>
+    </div>
+</div>
+
+<!-- DELETE MODAL -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-box" style="max-width:360px">
+        <div class="modal-header"><span class="modal-title" style="color:#dc2626"><i class="fas fa-exclamation-triangle" style="margin-right:8px"></i>Delete Client</span><button class="modal-close" onclick="closeModal('deleteModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px">Deactivate <strong id="deleteClientName"></strong>?</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteClient()"><i class="fas fa-trash"></i> Deactivate</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<!-- SheetJS for Excel parsing -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/sidebar.js"></script>
+<script src="../../js/layout.js"></script>
+<script>
+let allClients = [];
+let allServices = [];
+let deleteTargetId = null;
+let importData = [];
+let isEditMode = false;
+
+(async () => {
+    const profile = await initLayout();
+    if (!profile) return;
+    renderSidebar('clients');
+    setActiveNav();
+    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
+    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    await Promise.all([loadClients(), loadServices()]);
+})();
+
+// ── Load ────────────────────────────────────────────────────
+async function loadClients() {
+    const { data, error } = await _supabase
+        .from('clients')
+        .select('*, client_services(service_id, services(name))')
+        .order('created_at', { ascending: false });
+    if (error) { showToast('Failed to load clients.', 'error'); return; }
+    allClients = data || [];
+    renderTable(allClients);
+}
+
+async function loadServices() {
+    const { data } = await _supabase.from('services').select('id, name').eq('is_active', true).order('name');
+    allServices = data || [];
+}
+
+// ── Render table ────────────────────────────────────────────
+function renderTable(clients) {
+    const body = document.getElementById('clientBody');
+    if (!clients.length) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af">No clients found.</td></tr>';
+        return;
+    }
+    body.innerHTML = clients.map((c, i) => {
+        const svcs = (c.client_services || []).map(cs => cs.services?.name).filter(Boolean);
+        const svcHtml = svcs.length
+            ? svcs.map(s => `<span class="badge badge-blue" style="margin:1px;font-size:10px">${s}</span>`).join('')
+            : '<span class="text-muted">None</span>';
+        return `<tr>
+            <td>${i+1}</td>
+            <td><strong>${c.name}</strong><br><span class="text-muted">${c.email_id||''}</span></td>
+            <td><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px">${c.pan_no}</code></td>
+            <td>${c.contact_no}</td>
+            <td style="font-size:12px;color:#6b7280">${c.email_id||'—'}</td>
+            <td>${c.is_gst_registered
+                ? `<span class="badge badge-green">✓ ${c.gst_no||''}</span>`
+                : '<span class="badge badge-gray">No</span>'}</td>
+            <td style="max-width:160px">${svcHtml}</td>
+            <td><span class="badge ${c.is_active?'badge-green':'badge-red'}">${c.is_active?'Active':'Inactive'}</span></td>
+            <td>
+                <button class="btn btn-secondary btn-sm" onclick='openEditModal(${JSON.stringify(c).replace(/'/g,"\\'")})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDelete(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function filterClients() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    renderTable(allClients.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.pan_no.toLowerCase().includes(q) ||
+        (c.contact_no || '').includes(q) ||
+        (c.email_id || '').toLowerCase().includes(q)
+    ));
+}
+
+// ── Services checkbox grid ──────────────────────────────────
+function renderServicesGrid(selectedIds = []) {
+    const grid = document.getElementById('servicesCheckboxGrid');
+    if (!allServices.length) { grid.innerHTML = '<span class="text-muted">No services added yet.</span>'; return; }
+    grid.innerHTML = allServices.map(s => `
+        <label class="checkbox-item ${selectedIds.includes(s.id)?'checked':''}" id="svc_label_${s.id}">
+            <input type="checkbox" value="${s.id}" ${selectedIds.includes(s.id)?'checked':''}
+                onchange="this.closest('.checkbox-item').classList.toggle('checked',this.checked)">
+            ${s.name}
+        </label>`).join('');
+}
+
+function getSelectedServiceIds() {
+    return [...document.querySelectorAll('#servicesCheckboxGrid input[type=checkbox]:checked')].map(el => parseInt(el.value));
+}
+
+// ── Open add/edit ───────────────────────────────────────────
+function openAddModal() {
+    isEditMode = false;
+    document.getElementById('clientModalTitle').innerHTML = '<i class="fas fa-user-plus" style="color:#2563eb;margin-right:8px"></i>Add Client';
+    document.getElementById('c_id').value = '';
+    ['c_name','c_address','c_contact','c_email','c_pan','c_aadhar','c_gst_no'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('c_dob').value = '';
+    document.getElementById('c_is_gst').checked = false;
+    toggleGSTField();
+    renderServicesGrid([]);
+    openModal('clientModal');
+}
+
+function openEditModal(c) {
+    isEditMode = true;
+    document.getElementById('clientModalTitle').innerHTML = '<i class="fas fa-user-edit" style="color:#2563eb;margin-right:8px"></i>Edit Client';
+    document.getElementById('c_id').value      = c.id;
+    document.getElementById('c_name').value    = c.name;
+    document.getElementById('c_address').value = c.address || '';
+    document.getElementById('c_contact').value = c.contact_no;
+    document.getElementById('c_email').value   = c.email_id || '';
+    document.getElementById('c_pan').value     = c.pan_no;
+    document.getElementById('c_aadhar').value  = c.aadhar_no || '';
+    document.getElementById('c_dob').value     = c.date_of_birth || '';
+    document.getElementById('c_is_gst').checked = !!c.is_gst_registered;
+    document.getElementById('c_gst_no').value  = c.gst_no || '';
+    toggleGSTField();
+    const selectedIds = (c.client_services || []).map(cs => cs.service_id);
+    renderServicesGrid(selectedIds);
+    openModal('clientModal');
+}
+
+function closeClientModal() {
+    isEditMode = false;
+    closeModal('clientModal');
+}
+
+function toggleGSTField() {
+    document.getElementById('gstNoGroup').style.display =
+        document.getElementById('c_is_gst').checked ? 'block' : 'none';
+}
+
+// ── Save client ─────────────────────────────────────────────
+async function saveClient() {
+    const name      = document.getElementById('c_name').value.trim();
+    const address   = document.getElementById('c_address').value.trim();
+    const contact   = document.getElementById('c_contact').value.trim();
+    const email     = document.getElementById('c_email').value.trim();
+    const pan       = document.getElementById('c_pan').value.trim().toUpperCase();
+    const aadhar    = document.getElementById('c_aadhar').value.trim();
+    const dob       = document.getElementById('c_dob').value || null;
+    const isGST     = document.getElementById('c_is_gst').checked;
+    const gstNo     = document.getElementById('c_gst_no').value.trim().toUpperCase();
+    const svcIds    = getSelectedServiceIds();
+
+    if (!name)    { showToast('Name is required.', 'error'); return; }
+    if (!contact) { showToast('Contact number is required.', 'error'); return; }
+    if (!pan)     { showToast('PAN is required.', 'error'); return; }
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) { showToast('Invalid PAN format. e.g. ABCDE1234F', 'error'); return; }
+    if (!/^\d{10}$/.test(contact)) { showToast('Enter valid 10-digit mobile.', 'error'); return; }
+    if (isGST && !gstNo) { showToast('GST number is required when GST Registered is checked.', 'error'); return; }
+
+    const btn = document.getElementById('clientSubmitBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        const payload = {
+            name, address, contact_no: contact, email_id: email,
+            pan_no: pan, aadhar_no: aadhar, date_of_birth: dob,
+            is_gst_registered: isGST, gst_no: isGST ? gstNo : '',
+            updated_at: new Date().toISOString()
+        };
+
+        let clientId;
+        if (isEditMode) {
+            clientId = parseInt(document.getElementById('c_id').value);
+            const { error } = await _supabase.from('clients').update(payload).eq('id', clientId);
+            if (error) throw new Error(error.message);
+            await logAudit('UPDATE_CLIENT', 'clients', clientId, null, payload);
+        } else {
+            // Check PAN uniqueness
+            const { data: existing } = await _supabase.from('clients').select('id').eq('pan_no', pan).single();
+            if (existing) throw new Error('A client with this PAN already exists.');
+            const profile = getCachedProfile();
+            const { data: inserted, error } = await _supabase.from('clients')
+                .insert({ ...payload, is_active: true, created_by: profile?.id })
+                .select('id').single();
+            if (error) throw new Error(error.message);
+            clientId = inserted.id;
+            await logAudit('CREATE_CLIENT', 'clients', clientId, null, payload);
+        }
+
+        // Update client_services: delete existing then re-insert
+        await _supabase.from('client_services').delete().eq('client_id', clientId);
+        if (svcIds.length) {
+            await _supabase.from('client_services').insert(
+                svcIds.map(sid => ({ client_id: clientId, service_id: sid }))
+            );
+        }
+
+        showToast(`Client ${isEditMode?'updated':'added'} successfully!`, 'success');
+        closeClientModal();
+        await loadClients();
+    } catch(err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Client';
+    }
+}
+
+// ── Delete ──────────────────────────────────────────────────
+function openDelete(id, name) {
+    deleteTargetId = id;
+    document.getElementById('deleteClientName').textContent = name;
+    openModal('deleteModal');
+}
+async function deleteClient() {
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    const { error } = await _supabase.from('clients').update({ is_active: false }).eq('id', deleteTargetId);
+    btn.disabled = false;
+    if (error) { showToast(error.message, 'error'); return; }
+    await logAudit('DELETE_CLIENT', 'clients', deleteTargetId);
+    showToast('Client deactivated.', 'success');
+    closeModal('deleteModal');
+    await loadClients();
+}
+
+// ── Excel Import ────────────────────────────────────────────
+function dragOver(e)  { e.preventDefault(); document.getElementById('importZone').classList.add('dragover'); }
+function dragLeave(e) { document.getElementById('importZone').classList.remove('dragover'); }
+function dropFile(e)  { e.preventDefault(); dragLeave(e); processExcelFile(e.dataTransfer.files[0]); }
+function handleFileSelect(e) { processExcelFile(e.target.files[0]); }
+
+function processExcelFile(file) {
+    if (!file) return;
+    if (!file.name.match(/\.(xlsx|xls)$/i)) { showToast('Please upload .xlsx or .xls file only.', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const wb   = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+            const ws   = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+            parseImportRows(rows);
+        } catch(err) {
+            showToast('Could not read file: ' + err.message, 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function parseImportRows(rows) {
+    importData = [];
+    const errBox = document.getElementById('importErrorBox');
+    errBox.style.display = 'none';
+    document.getElementById('importPreviewSection').style.display = 'block';
+
+    const errors = [];
+    const preview = [];
+
+    rows.forEach((row, idx) => {
+        const rowNum = idx + 2; // Excel row number (1=header)
+        const name    = String(row['Name'] || row['name'] || '').trim();
+        const pan     = String(row['PAN'] || row['pan_no'] || row['PAN No'] || '').trim().toUpperCase();
+        const contact = String(row['Contact No'] || row['contact_no'] || row['Mobile'] || '').trim();
+        const email   = String(row['Email'] || row['email_id'] || '').trim();
+        const address = String(row['Address'] || row['address'] || '').trim();
+        const aadhar  = String(row['Aadhaar'] || row['aadhar_no'] || '').trim();
+        const dob     = row['Date of Birth'] || row['dob'] || '';
+        const isGST   = String(row['GST Registered'] || '').toLowerCase() === 'yes';
+        const gstNo   = String(row['GST No'] || row['gst_no'] || '').trim().toUpperCase();
+
+        let rowErr = null;
+        if (!name)    rowErr = `Row ${rowNum}: Name is missing`;
+        else if (!pan) rowErr = `Row ${rowNum}: PAN is missing`;
+        else if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) rowErr = `Row ${rowNum}: Invalid PAN "${pan}"`;
+        else if (!contact || !/^\d{10}$/.test(contact)) rowErr = `Row ${rowNum}: Invalid contact "${contact}"`;
+
+        if (rowErr) errors.push(rowErr);
+        else importData.push({ name, pan_no: pan, contact_no: contact, email_id: email,
+            address, aadhar_no: aadhar,
+            date_of_birth: dob ? new Date(dob).toISOString().split('T')[0] : null,
+            is_gst_registered: isGST, gst_no: isGST ? gstNo : '',
+            is_active: true });
+
+        preview.push({ rowNum, name, pan, contact, ok: !rowErr, errMsg: rowErr });
+    });
+
+    document.getElementById('importPreviewBody').innerHTML = preview.map(p => `
+        <tr class="${p.ok ? 'import-row-ok' : 'import-row-err'}">
+            <td>${p.rowNum}</td>
+            <td>${p.name || '—'}</td>
+            <td>${p.pan || '—'}</td>
+            <td>${p.contact || '—'}</td>
+            <td>${p.ok
+                ? '<span class="badge badge-green">✓ OK</span>'
+                : `<span class="badge badge-red">✗ Error</span>`}</td>
+        </tr>`).join('');
+
+    document.getElementById('importSummary').textContent =
+        `${importData.length} valid rows, ${errors.length} errors`;
+
+    if (errors.length) {
+        errBox.style.display = 'block';
+        errBox.innerHTML = '<strong><i class="fas fa-exclamation-circle"></i> Fix these errors before importing:</strong><br>' +
+            errors.map(e => `• ${e}`).join('<br>');
+        document.getElementById('importBtn').disabled = true;
+    } else {
+        document.getElementById('importBtn').disabled = false;
+    }
+}
+
+function clearImport() {
+    importData = [];
+    document.getElementById('importPreviewSection').style.display = 'none';
+    document.getElementById('excelFile').value = '';
+    document.getElementById('importBtn').disabled = true;
+}
+
+async function runImport() {
+    if (!importData.length) return;
+    const btn = document.getElementById('importBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing…';
+
+    try {
+        // Check for duplicate PANs in DB (stop if any found)
+        const pans = importData.map(r => r.pan_no);
+        const { data: existing } = await _supabase.from('clients').select('pan_no').in('pan_no', pans);
+        if (existing && existing.length > 0) {
+            const dup = existing.map(e => e.pan_no).join(', ');
+            throw new Error(`Import stopped. PAN(s) already exist in system: ${dup}`);
+        }
+        const profile = getCachedProfile();
+        const rows = importData.map(r => ({ ...r, created_by: profile?.id }));
+        const { error } = await _supabase.from('clients').insert(rows);
+        if (error) throw new Error(error.message);
+
+        await logAudit('IMPORT_CLIENTS', 'clients', null, null, { count: rows.length });
+        showToast(`${rows.length} clients imported successfully!`, 'success');
+        closeModal('importModal');
+        clearImport();
+        await loadClients();
+    } catch(err) {
+        document.getElementById('importErrorBox').style.display = 'block';
+        document.getElementById('importErrorBox').innerHTML = `<i class="fas fa-times-circle"></i> ${err.message}`;
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-upload"></i> Import Clients';
+    }
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+</body>
+</html>

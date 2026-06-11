@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GStaxOfy — Firm Details</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="manifest" href="../../manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GStaxOfy">
+    <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+</head>
+<body>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo"><img src="../../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="ca-logo-text" style="display:none">CA</span></div>
+            <div class="company-info">
+                <h1 id="firmNameHeader">GStaxOfy</h1>
+                <p>GSTaxOfy</p>
+            </div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details">
+                <div class="user-name" id="headerUserName">Loading…</div>
+                <div class="user-role" id="headerUserRole"></div>
+            </div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+            </div>
+        </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+            <div class="page-title"><i class="fas fa-building"></i> Firm Details</div>
+
+            <div style="max-width:680px">
+                <div class="form-grid" id="firmForm">
+                    <div class="form-group">
+                        <label>Firm Name *</label>
+                        <input type="text" id="firmName" placeholder="e.g. CA Ganesh & Associates" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Registration No. *</label>
+                        <input type="text" id="registrationNo" placeholder="FRN / ICAI Reg No." disabled>
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1">
+                        <label>Firm Address *</label>
+                        <textarea id="firmAddress" rows="3" placeholder="Full address" disabled style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone *</label>
+                        <input type="tel" id="phone" placeholder="10-digit mobile" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Email ID *</label>
+                        <input type="email" id="emailId" placeholder="firm@example.com" disabled>
+                    </div>
+                </div>
+
+                <div class="form-actions" id="formActions" data-role="master">
+                    <button class="btn btn-primary" id="editBtn" onclick="enableEdit()"><i class="fas fa-edit"></i> Update Details</button>
+                    <button class="btn btn-secondary hidden" id="cancelBtn" onclick="cancelEdit()"><i class="fas fa-times"></i> Cancel</button>
+                    <button class="btn btn-success hidden" id="saveBtn" onclick="saveFirm()"><i class="fas fa-save"></i> Save Changes</button>
+                </div>
+            </div>
+
+            <!-- Success popup -->
+            <div class="modal-overlay" id="successModal">
+                <div class="modal-box" style="max-width:340px;text-align:center">
+                    <div style="width:60px;height:60px;background:linear-gradient(45deg,#059669,#10b981);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+                        <i class="fas fa-check" style="color:#fff;font-size:24px"></i>
+                    </div>
+                    <h3 style="color:#1f2937;margin-bottom:8px">Saved Successfully!</h3>
+                    <p style="color:#6b7280;margin-bottom:20px">Firm details have been updated.</p>
+                    <button class="btn btn-primary" onclick="closeModal('successModal')">OK</button>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()"><i class="fas fa-sign-out-alt"></i> Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/sidebar.js"></script>
+<script src="../../js/layout.js"></script>
+<script>
+let originalData = {};
+
+(async () => {
+    const profile = await initLayout(['master']);
+    if (!profile) return;
+    renderSidebar('firm-details');
+    setActiveNav();
+    await loadFirm();
+})();
+
+async function loadFirm() {
+    const { data, error } = await _supabase.from('firm_details').select('*').single();
+    if (error || !data) { showToast('Could not load firm details.', 'error'); return; }
+    document.getElementById('firmName').value       = data.firm_name;
+    document.getElementById('firmAddress').value    = data.firm_address;
+    document.getElementById('registrationNo').value = data.registration_no;
+    document.getElementById('phone').value          = data.phone;
+    document.getElementById('emailId').value        = data.email_id;
+    originalData = { ...data };
+    document.getElementById('firmNameHeader').textContent = data.firm_name;
+}
+
+function enableEdit() {
+    ['firmName','firmAddress','registrationNo','phone','emailId'].forEach(id => {
+        document.getElementById(id).disabled = false;
+    });
+    document.getElementById('editBtn').classList.add('hidden');
+    document.getElementById('cancelBtn').classList.remove('hidden');
+    document.getElementById('saveBtn').classList.remove('hidden');
+}
+
+function cancelEdit() {
+    document.getElementById('firmName').value       = originalData.firm_name;
+    document.getElementById('firmAddress').value    = originalData.firm_address;
+    document.getElementById('registrationNo').value = originalData.registration_no;
+    document.getElementById('phone').value          = originalData.phone;
+    document.getElementById('emailId').value        = originalData.email_id;
+    disableEdit();
+}
+
+function disableEdit() {
+    ['firmName','firmAddress','registrationNo','phone','emailId'].forEach(id => {
+        document.getElementById(id).disabled = true;
+    });
+    document.getElementById('editBtn').classList.remove('hidden');
+    document.getElementById('cancelBtn').classList.add('hidden');
+    document.getElementById('saveBtn').classList.add('hidden');
+}
+
+async function saveFirm() {
+    const newData = {
+        firm_name:       document.getElementById('firmName').value.trim(),
+        firm_address:    document.getElementById('firmAddress').value.trim(),
+        registration_no: document.getElementById('registrationNo').value.trim(),
+        phone:           document.getElementById('phone').value.trim(),
+        email_id:        document.getElementById('emailId').value.trim(),
+        updated_at:      new Date().toISOString()
+    };
+    if (Object.values(newData).some(v => !v && v !== newData.updated_at)) {
+        showToast('All fields are required.', 'error'); return;
+    }
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    const { error } = await _supabase.from('firm_details').update(newData).eq('id', 1);
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+    if (error) { showToast(error.message, 'error'); return; }
+
+    await logAudit('UPDATE_FIRM', 'firm_details', '1', originalData, newData);
+    originalData = { id: 1, ...newData };
+    document.getElementById('firmNameHeader').textContent = newData.firm_name;
+    disableEdit();
+    openModal('successModal');
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+</body>
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GStaxOfy — Services</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="manifest" href="../../manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GStaxOfy">
+    <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+</head>
+<body>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo"><img src="../../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="ca-logo-text" style="display:none">CA</span></div>
+            <div class="company-info"><h1 id="firmNameHeader">GStaxOfy</h1><p>GSTaxOfy</p></div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+            </div>
+        </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-list-check"></i> Services</div>
+                <button class="btn btn-primary" onclick="openModal('serviceModal')"><i class="fas fa-plus"></i> Add Service</button>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr><th>#</th><th>Service Name</th><th>Description</th><th>Frequency</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="serviceBody">
+                        <tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- ADD / EDIT SERVICE MODAL -->
+<div class="modal-overlay" id="serviceModal">
+    <div class="modal-box" style="max-width:540px">
+        <div class="modal-header">
+            <span class="modal-title" id="serviceModalTitle"><i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Service</span>
+            <button class="modal-close" onclick="closeServiceModal()">&times;</button>
+        </div>
+        <input type="hidden" id="s_id">
+        <div class="form-grid">
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Service Name *</label>
+                <input type="text" id="s_name" placeholder="e.g. GST Return Filing">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Description</label>
+                <input type="text" id="s_desc" placeholder="Short description">
+            </div>
+            <div class="form-group">
+                <label>Filing Frequency *</label>
+                <select id="s_freq" onchange="toggleDeadlineFields()">
+                    <option value="">— Select —</option>
+                    <option>Monthly</option>
+                    <option>Quarterly</option>
+                    <option>Annually</option>
+                    <option>One-Time / Event Based</option>
+                </select>
+            </div>
+            <div class="form-group" id="deadlineDayGroup">
+                <label>Due Day of Month</label>
+                <input type="number" id="s_deadline_day" placeholder="e.g. 20" min="1" max="31">
+            </div>
+            <div class="form-group" id="deadlineMonthGroup" style="display:none">
+                <label>Due Month (for Annual)</label>
+                <select id="s_deadline_month">
+                    <option value="">— Select Month —</option>
+                    <option value="1">January</option><option value="2">February</option>
+                    <option value="3">March</option><option value="4">April</option>
+                    <option value="5">May</option><option value="6">June</option>
+                    <option value="7">July</option><option value="8">August</option>
+                    <option value="9">September</option><option value="10">October</option>
+                    <option value="11">November</option><option value="12">December</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeServiceModal()">Cancel</button>
+            <button class="btn btn-primary" id="serviceSubmitBtn" onclick="saveService()"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- DELETE CONFIRM -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-box" style="max-width:360px">
+        <div class="modal-header"><span class="modal-title" style="color:#dc2626"><i class="fas fa-exclamation-triangle" style="margin-right:8px"></i>Delete Service</span><button class="modal-close" onclick="closeModal('deleteModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px">Delete <strong id="deleteServiceName"></strong>? Clients linked to this service will lose it.</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteService()"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/sidebar.js"></script>
+<script src="../../js/layout.js"></script>
+<script>
+let deleteTargetId = null;
+let isEditMode = false;
+
+(async () => {
+    const profile = await initLayout(['master']);
+    if (!profile) return;
+    renderSidebar('services');
+    setActiveNav();
+    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
+    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    await loadServices();
+})();
+
+async function loadServices() {
+    const { data, error } = await _supabase.from('services').select('*').order('created_at', { ascending: false });
+    if (error) { showToast('Failed to load services.', 'error'); return; }
+    const body = document.getElementById('serviceBody');
+    if (!data || !data.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af">No services yet. Click "Add Service" to get started.</td></tr>';
+        return;
+    }
+    body.innerHTML = data.map((s, i) => {
+        const deadline = formatDeadline(s.frequency, s.deadline_day, s.deadline_month);
+        return `<tr>
+            <td>${i+1}</td>
+            <td><strong>${s.name}</strong></td>
+            <td style="color:#6b7280;font-size:13px">${s.description || '—'}</td>
+            <td><span class="badge ${freqBadge(s.frequency)}">${s.frequency || '—'}</span></td>
+            <td style="font-size:13px">${deadline}</td>
+            <td><span class="badge ${s.is_active ? 'badge-green' : 'badge-red'}">${s.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+                <button class="btn btn-secondary btn-sm" onclick='openEdit(${JSON.stringify(s)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDelete(${s.id},'${s.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function freqBadge(f) {
+    return { 'Monthly':'badge-blue', 'Quarterly':'badge-orange', 'Annually':'badge-green', 'One-Time / Event Based':'badge-gray' }[f] || 'badge-gray';
+}
+
+function formatDeadline(freq, day, month) {
+    if (!freq || freq === 'One-Time / Event Based') return 'As applicable';
+    if (freq === 'Annually' && day && month) {
+        const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${day} ${months[month]}`;
+    }
+    if (day) return `${day}th of due month`;
+    return '—';
+}
+
+function toggleDeadlineFields() {
+    const freq = document.getElementById('s_freq').value;
+    const dayGroup   = document.getElementById('deadlineDayGroup');
+    const monthGroup = document.getElementById('deadlineMonthGroup');
+    if (freq === 'One-Time / Event Based' || !freq) {
+        dayGroup.style.display = 'none'; monthGroup.style.display = 'none';
+    } else if (freq === 'Annually') {
+        dayGroup.style.display = 'block'; monthGroup.style.display = 'block';
+    } else {
+        dayGroup.style.display = 'block'; monthGroup.style.display = 'none';
+    }
+}
+
+function openEdit(s) {
+    isEditMode = true;
+    document.getElementById('serviceModalTitle').innerHTML = '<i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Service';
+    document.getElementById('s_id').value            = s.id;
+    document.getElementById('s_name').value          = s.name;
+    document.getElementById('s_desc').value          = s.description || '';
+    document.getElementById('s_freq').value          = s.frequency || '';
+    document.getElementById('s_deadline_day').value  = s.deadline_day || '';
+    document.getElementById('s_deadline_month').value= s.deadline_month || '';
+    toggleDeadlineFields();
+    openModal('serviceModal');
+}
+
+function closeServiceModal() {
+    isEditMode = false;
+    document.getElementById('s_id').value = '';
+    document.getElementById('s_name').value = '';
+    document.getElementById('s_desc').value = '';
+    document.getElementById('s_freq').value = '';
+    document.getElementById('s_deadline_day').value = '';
+    document.getElementById('s_deadline_month').value = '';
+    document.getElementById('serviceModalTitle').innerHTML = '<i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Service';
+    toggleDeadlineFields();
+    closeModal('serviceModal');
+}
+
+async function saveService() {
+    const name  = document.getElementById('s_name').value.trim();
+    const desc  = document.getElementById('s_desc').value.trim();
+    const freq  = document.getElementById('s_freq').value;
+    const day   = parseInt(document.getElementById('s_deadline_day').value) || null;
+    const month = parseInt(document.getElementById('s_deadline_month').value) || null;
+    if (!name || !freq) { showToast('Service name and frequency are required.', 'error'); return; }
+
+    const btn = document.getElementById('serviceSubmitBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    const payload = { name, description: desc, frequency: freq, deadline_day: day, deadline_month: month };
+    let error;
+
+    if (isEditMode) {
+        const id = document.getElementById('s_id').value;
+        ({ error } = await _supabase.from('services').update(payload).eq('id', id));
+        if (!error) await logAudit('UPDATE_SERVICE', 'services', id, null, payload);
+    } else {
+        ({ error } = await _supabase.from('services').insert({ ...payload, is_active: true }));
+        if (!error) await logAudit('CREATE_SERVICE', 'services', null, null, payload);
+    }
+
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save';
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast(`Service ${isEditMode ? 'updated' : 'created'} successfully!`, 'success');
+    closeServiceModal();
+    await loadServices();
+}
+
+function openDelete(id, name) {
+    deleteTargetId = id;
+    document.getElementById('deleteServiceName').textContent = name;
+    openModal('deleteModal');
+}
+
+async function deleteService() {
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    const { error } = await _supabase.from('services').update({ is_active: false }).eq('id', deleteTargetId);
+    btn.disabled = false;
+    if (error) { showToast(error.message, 'error'); return; }
+    await logAudit('DELETE_SERVICE', 'services', deleteTargetId);
+    showToast('Service deactivated.', 'success');
+    closeModal('deleteModal');
+    await loadServices();
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+</body>
+</html>

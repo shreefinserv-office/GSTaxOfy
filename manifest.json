@@ -1,0 +1,38 @@
+{
+  "name": "GStaxOfy — CA Firm Management",
+  "short_name": "GStaxOfy",
+  "description": "CA Firm Management System — Clients, Tasks, Invoices, GST",
+  "start_url": "/GStaxOfy/index.html",
+  "scope": "/GStaxOfy/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#667eea",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/GStaxOfy/pages/dashboard.html",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Clients",
+      "url": "/GStaxOfy/pages/Masters/clients.html",
+      "icons": [{ "src": "assets/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

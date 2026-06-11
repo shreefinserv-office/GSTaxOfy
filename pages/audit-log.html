@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GStaxOfy — Audit Log</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="manifest" href="../manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GStaxOfy">
+    <link rel="apple-touch-icon" href="../assets/icon-192.png">
+</head>
+<body>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo"><img src="../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="ca-logo-text" style="display:none">CA</span></div>
+            <div class="company-info">
+                <h1 id="firmNameHeader">GStaxOfy</h1>
+                <p>GSTaxOfy</p>
+            </div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details">
+                <div class="user-name" id="headerUserName">Loading…</div>
+                <div class="user-role" id="headerUserRole"></div>
+            </div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+            </div>
+        </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-history"></i> Audit Log</div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                    <select id="filterAction" onchange="loadLogs()" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px">
+                        <option value="">All Actions</option>
+                        <option>LOGIN</option><option>LOGOUT</option>
+                        <option>CREATE_USER</option><option>UPDATE_USER</option><option>DELETE_USER</option>
+                        <option>UPDATE_FIRM</option><option>CHANGE_PASSWORD</option>
+                        <option>CREATE_TASK</option><option>UPDATE_TASK</option>
+                        <option>CREATE_INVOICE</option><option>CREATE_RECEIPT</option>
+                    </select>
+                    <input type="date" id="filterDate" onchange="loadLogs()"
+                        style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px">
+                    <button class="btn btn-secondary btn-sm" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+                </div>
+            </div>
+
+            <div id="logSummary" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap"></div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Date &amp; Time</th><th>User</th>
+                            <th>Action</th><th>Table</th><th>Record ID</th><th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logBody">
+                        <tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:10px">
+                <span class="text-muted" id="paginationInfo"></span>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-secondary btn-sm" id="prevBtn" onclick="changePage(-1)" disabled><i class="fas fa-chevron-left"></i> Prev</button>
+                    <button class="btn btn-secondary btn-sm" id="nextBtn" onclick="changePage(1)">Next <i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-box" style="max-width:560px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-info-circle" style="color:#2563eb;margin-right:8px"></i>Log Details</span>
+            <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+        </div>
+        <div id="detailContent"></div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()"><i class="fas fa-sign-out-alt"></i> Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../js/supabase-config.js"></script>
+<script src="../js/app.js"></script>
+<script src="../js/sidebar.js"></script>
+<script src="../js/layout.js"></script>
+<script>
+const PAGE_SIZE = 20;
+let currentPage = 0;
+let totalCount = 0;
+
+(async () => {
+    const profile = await initLayout(['master']);
+    if (!profile) return;
+    renderSidebar('audit');
+    setActiveNav();
+    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
+    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    await loadLogs();
+})();
+
+async function loadLogs() {
+    const action = document.getElementById('filterAction').value;
+    const date   = document.getElementById('filterDate').value;
+    currentPage  = 0;
+    await fetchPage();
+}
+
+async function fetchPage() {
+    const action = document.getElementById('filterAction').value;
+    const date   = document.getElementById('filterDate').value;
+    const from   = currentPage * PAGE_SIZE;
+    const to     = from + PAGE_SIZE - 1;
+
+    let query = _supabase.from('audit_log').select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+    if (action) query = query.eq('action', action);
+    if (date)   query = query.gte('created_at', date + 'T00:00:00').lte('created_at', date + 'T23:59:59');
+
+    const { data, error, count } = await query;
+    if (error) { showToast('Failed to load logs.', 'error'); return; }
+    totalCount = count || 0;
+    renderLogs(data || []);
+    updatePagination();
+}
+
+const actionColors = {
+    'LOGIN':'badge-green','LOGOUT':'badge-gray',
+    'CREATE_USER':'badge-blue','UPDATE_USER':'badge-orange','DELETE_USER':'badge-red',
+    'UPDATE_FIRM':'badge-blue','CHANGE_PASSWORD':'badge-orange',
+    'CREATE_TASK':'badge-blue','UPDATE_TASK':'badge-orange',
+    'CREATE_INVOICE':'badge-blue','CREATE_RECEIPT':'badge-blue'
+};
+
+function renderLogs(logs) {
+    const body = document.getElementById('logBody');
+    if (!logs.length) {
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af">No log entries found.</td></tr>';
+        return;
+    }
+    const offset = currentPage * PAGE_SIZE;
+    body.innerHTML = logs.map((l, i) => `
+        <tr>
+            <td>${offset + i + 1}</td>
+            <td style="white-space:nowrap;font-size:12px">${new Date(l.created_at).toLocaleString('en-IN')}</td>
+            <td><strong>${l.user_name || '—'}</strong></td>
+            <td><span class="badge ${actionColors[l.action]||'badge-gray'}">${l.action.replace(/_/g,' ')}</span></td>
+            <td><code style="font-size:11px;color:#6b7280">${l.table_name||'—'}</code></td>
+            <td style="font-size:11px;color:#9ca3af;max-width:90px;overflow:hidden;text-overflow:ellipsis">${l.record_id||'—'}</td>
+            <td>
+                ${(l.old_data||l.new_data) ? `<button class="btn btn-secondary btn-sm" onclick='showDetail(${JSON.stringify(l)})'><i class="fas fa-eye"></i></button>` : '—'}
+            </td>
+        </tr>`).join('');
+}
+
+function showDetail(log) {
+    const c = document.getElementById('detailContent');
+    const fmt = obj => `<pre style="background:#f9fafb;padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre-wrap;color:#374151">${JSON.stringify(obj, null, 2)}</pre>`;
+    c.innerHTML = `
+        <p style="margin-bottom:10px;color:#6b7280;font-size:13px">Action: <strong>${log.action}</strong> &nbsp;|&nbsp; ${new Date(log.created_at).toLocaleString('en-IN')}</p>
+        ${log.old_data ? `<p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:6px">Before:</p>${fmt(log.old_data)}` : ''}
+        ${log.new_data ? `<p style="font-size:13px;font-weight:600;color:#374151;margin:10px 0 6px">After:</p>${fmt(log.new_data)}` : ''}
+    `;
+    openModal('detailModal');
+}
+
+function updatePagination() {
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    document.getElementById('paginationInfo').textContent =
+        `Showing ${currentPage * PAGE_SIZE + 1}–${Math.min((currentPage+1)*PAGE_SIZE, totalCount)} of ${totalCount} entries`;
+    document.getElementById('prevBtn').disabled = currentPage === 0;
+    document.getElementById('nextBtn').disabled = currentPage >= totalPages - 1;
+}
+
+async function changePage(dir) {
+    currentPage += dir;
+    await fetchPage();
+}
+
+function clearFilters() {
+    document.getElementById('filterAction').value = '';
+    document.getElementById('filterDate').value = '';
+    loadLogs();
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+</body>
+</html>

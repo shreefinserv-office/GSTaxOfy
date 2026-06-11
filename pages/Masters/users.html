@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GStaxOfy — Users</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="manifest" href="../../manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GStaxOfy">
+    <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+</head>
+<body>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo"><img src="../../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="ca-logo-text" style="display:none">CA</span></div>
+            <div class="company-info">
+                <h1 id="firmNameHeader">GStaxOfy</h1>
+                <p>GSTaxOfy</p>
+            </div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details">
+                <div class="user-name" id="headerUserName">Loading…</div>
+                <div class="user-role" id="headerUserRole"></div>
+            </div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+            </div>
+        </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-users"></i> Users</div>
+                <div style="display:flex;gap:10px;align-items:center">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="Search users…" oninput="filterUsers()">
+                    </div>
+                    <button class="btn btn-primary" onclick="openModal('createModal')"><i class="fas fa-plus"></i> Add User</button>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Name</th><th>Username</th><th>Email</th>
+                            <th>Phone</th><th>Role</th><th>Department</th><th>Status</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersBody">
+                        <tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- CREATE USER MODAL -->
+<div class="modal-overlay" id="createModal">
+    <div class="modal-box" style="max-width:600px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-user-plus" style="color:#2563eb;margin-right:8px"></i>Create New User</span>
+            <button class="modal-close" onclick="closeModal('createModal')">&times;</button>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Full Name *</label>
+                <input type="text" id="c_fullName" placeholder="e.g. Rahul Sharma">
+            </div>
+            <div class="form-group">
+                <label>Email *</label>
+                <input type="email" id="c_email" placeholder="user@email.com">
+            </div>
+            <div class="form-group">
+                <label>Mobile No. *</label>
+                <input type="tel" id="c_mobile" placeholder="10-digit number" maxlength="10">
+            </div>
+            <div class="form-group">
+                <label>Username *</label>
+                <input type="text" id="c_username" placeholder="e.g. rahul.sharma">
+            </div>
+            <div class="form-group">
+                <label>Role *</label>
+                <select id="c_role">
+                    <option value="">— Select Role —</option>
+                    <option value="master">Master</option>
+                    <option value="manager">Manager</option>
+                    <option value="staff">Staff</option>
+                    <option value="intern">Intern</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Department *</label>
+                <select id="c_department">
+                    <option value="">— Select —</option>
+                    <option>GST</option><option>Income Tax</option><option>Audit</option>
+                    <option>Accounts</option><option>TDS</option><option>Management</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Address</label>
+                <input type="text" id="c_address" placeholder="Optional">
+            </div>
+            <div class="form-group">
+                <label>Password *</label>
+                <input type="password" id="c_password" placeholder="Min 8 characters">
+            </div>
+            <div class="form-group">
+                <label>Confirm Password *</label>
+                <input type="password" id="c_confirm" placeholder="Re-enter password">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('createModal')">Cancel</button>
+            <button class="btn btn-primary" id="createBtn" onclick="createUser()"><i class="fas fa-plus"></i> Create User</button>
+        </div>
+    </div>
+</div>
+
+<!-- EDIT USER MODAL -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box" style="max-width:560px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-user-edit" style="color:#2563eb;margin-right:8px"></i>Edit User</span>
+            <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+        </div>
+        <input type="hidden" id="e_id">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Full Name *</label>
+                <input type="text" id="e_fullName">
+            </div>
+            <div class="form-group">
+                <label>Email *</label>
+                <input type="email" id="e_email">
+            </div>
+            <div class="form-group">
+                <label>Mobile No. *</label>
+                <input type="tel" id="e_mobile" maxlength="10">
+            </div>
+            <div class="form-group">
+                <label>Role *</label>
+                <select id="e_role">
+                    <option value="master">Master</option>
+                    <option value="manager">Manager</option>
+                    <option value="staff">Staff</option>
+                    <option value="intern">Intern</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Department *</label>
+                <select id="e_department">
+                    <option>GST</option><option>Income Tax</option><option>Audit</option>
+                    <option>Accounts</option><option>TDS</option><option>Management</option><option>Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select id="e_status">
+                    <option value="true">Active</option>
+                    <option value="false">Inactive</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('editModal')">Cancel</button>
+            <button class="btn btn-primary" id="editBtn" onclick="updateUser()"><i class="fas fa-save"></i> Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-box" style="max-width:400px">
+        <div class="modal-header">
+            <span class="modal-title" style="color:#dc2626"><i class="fas fa-exclamation-triangle" style="margin-right:8px"></i>Delete User</span>
+            <button class="modal-close" onclick="closeModal('deleteModal')">&times;</button>
+        </div>
+        <p style="color:#6b7280;margin-bottom:10px">You are about to delete <strong id="deleteUserName"></strong>. This action cannot be undone.</p>
+        <div class="form-group" style="margin-bottom:16px">
+            <label>Reason *</label>
+            <select id="deleteReason">
+                <option value="">— Select reason —</option>
+                <option>Resigned</option><option>Contract Ended</option>
+                <option>Duplicate Account</option><option>Other</option>
+            </select>
+        </div>
+        <div class="form-group" id="otherReasonGroup" style="display:none;margin-bottom:16px">
+            <label>Specify Reason *</label>
+            <input type="text" id="otherReason" placeholder="Enter reason">
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteUser()"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- LOGOUT MODAL -->
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()"><i class="fas fa-sign-out-alt"></i> Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/sidebar.js"></script>
+<script src="../../js/layout.js"></script>
+<script>
+let allUsers = [];
+let deleteTargetId = null;
+
+(async () => {
+    const profile = await initLayout(['master']);
+    if (!profile) return;
+    renderSidebar('users');
+    setActiveNav();
+
+    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
+    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+
+    await loadUsers();
+
+    document.getElementById('deleteReason').addEventListener('change', () => {
+        document.getElementById('otherReasonGroup').style.display =
+            document.getElementById('deleteReason').value === 'Other' ? 'block' : 'none';
+    });
+})();
+
+async function loadUsers() {
+    const { data, error } = await _supabase
+        .from('user_profiles')
+        .select('id, username, full_name, phone, role, department, is_active, created_at')
+        .order('created_at', { ascending: false });
+
+    if (error) { showToast('Failed to load users: ' + error.message, 'error'); return; }
+
+    // Get emails from auth — we store them in auth.users, not user_profiles
+    // We can get current user's email; for listing we just show username
+    allUsers = data || [];
+    renderTable(allUsers);
+}
+
+function renderTable(users) {
+    const body = document.getElementById('usersBody');
+    if (!users.length) {
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af">No users found.</td></tr>';
+        return;
+    }
+    body.innerHTML = users.map((u, i) => `
+        <tr>
+            <td>${i + 1}</td>
+            <td><strong>${u.full_name}</strong></td>
+            <td><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px">${u.username}</code></td>
+            <td><span class="text-muted">${u.id.substring(0,8)}…</span></td>
+            <td>${u.phone}</td>
+            <td><span class="badge role-${u.role}">${u.role.charAt(0).toUpperCase()+u.role.slice(1)}</span></td>
+            <td>${u.department}</td>
+            <td><span class="badge ${u.is_active?'badge-green':'badge-red'}">${u.is_active?'Active':'Inactive'}</span></td>
+            <td>
+                <button class="btn btn-secondary btn-sm" onclick='openEdit(${JSON.stringify(u)})'><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger btn-sm" onclick="openDelete('${u.id}','${u.full_name}')" style="margin-left:4px"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join('');
+}
+
+function filterUsers() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    renderTable(allUsers.filter(u =>
+        u.full_name.toLowerCase().includes(q) ||
+        u.username.toLowerCase().includes(q) ||
+        u.department.toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q)
+    ));
+}
+
+async function createUser() {
+    const fullName   = document.getElementById('c_fullName').value.trim();
+    const email      = document.getElementById('c_email').value.trim();
+    const mobile     = document.getElementById('c_mobile').value.trim();
+    const username   = document.getElementById('c_username').value.trim();
+    const role       = document.getElementById('c_role').value;
+    const department = document.getElementById('c_department').value;
+    const address    = document.getElementById('c_address').value.trim();
+    const password   = document.getElementById('c_password').value;
+    const confirm    = document.getElementById('c_confirm').value;
+
+    if (!fullName||!email||!mobile||!username||!role||!department||!password) {
+        showToast('Please fill all required fields.', 'error'); return;
+    }
+    if (password !== confirm) { showToast('Passwords do not match.', 'error'); return; }
+    if (password.length < 8)  { showToast('Password must be at least 8 characters.', 'error'); return; }
+    if (!/^\d{10}$/.test(mobile)) { showToast('Enter a valid 10-digit mobile number.', 'error'); return; }
+
+    const btn = document.getElementById('createBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating…';
+
+    try {
+        // 1. Create auth user using Supabase Admin API via anon key + signUp
+        // NOTE: In production use a Supabase Edge Function with service_role key.
+        // For now we use signUp which sends a confirmation email.
+        const { data: authData, error: authErr } = await _supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: window.location.origin }
+        });
+        if (authErr) throw new Error(authErr.message);
+
+        const userId = authData.user.id;
+
+        // 2. Check username uniqueness
+        const { data: existing } = await _supabase
+            .from('user_profiles').select('id').eq('username', username).single();
+        if (existing) { throw new Error('Username already exists.'); }
+
+        // 3. Insert profile
+        const profile = getCachedProfile();
+        const { error: profErr } = await _supabase.from('user_profiles').insert({
+            id: userId, username, full_name: fullName,
+            phone: mobile, address, role, department,
+            is_active: true,
+            created_by: profile?.id
+        });
+        if (profErr) throw new Error(profErr.message);
+
+        await logAudit('CREATE_USER', 'user_profiles', userId, null, { username, full_name: fullName, role });
+        showToast(`User "${fullName}" created! They'll receive a confirmation email.`, 'success');
+        closeModal('createModal');
+        // Reset form
+        ['c_fullName','c_email','c_mobile','c_username','c_address','c_password','c_confirm'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('c_role').value = '';
+        document.getElementById('c_department').value = '';
+        await loadUsers();
+    } catch (err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus"></i> Create User';
+    }
+}
+
+function openEdit(user) {
+    document.getElementById('e_id').value         = user.id;
+    document.getElementById('e_fullName').value   = user.full_name;
+    document.getElementById('e_mobile').value     = user.phone;
+    document.getElementById('e_role').value       = user.role;
+    document.getElementById('e_department').value = user.department;
+    document.getElementById('e_status').value     = String(user.is_active);
+    // email shown as hint
+    document.getElementById('e_email').value = '(linked to auth — cannot change here)';
+    document.getElementById('e_email').disabled = true;
+    openModal('editModal');
+}
+
+async function updateUser() {
+    const id         = document.getElementById('e_id').value;
+    const fullName   = document.getElementById('e_fullName').value.trim();
+    const mobile     = document.getElementById('e_mobile').value.trim();
+    const role       = document.getElementById('e_role').value;
+    const department = document.getElementById('e_department').value;
+    const isActive   = document.getElementById('e_status').value === 'true';
+
+    if (!fullName||!mobile||!role||!department) { showToast('Fill all required fields.', 'error'); return; }
+    if (!/^\d{10}$/.test(mobile)) { showToast('Enter valid 10-digit mobile.', 'error'); return; }
+
+    const btn = document.getElementById('editBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    const oldUser = allUsers.find(u => u.id === id);
+    const { error } = await _supabase.from('user_profiles')
+        .update({ full_name: fullName, phone: mobile, role, department, is_active: isActive })
+        .eq('id', id);
+
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+    if (error) { showToast(error.message, 'error'); return; }
+
+    await logAudit('UPDATE_USER', 'user_profiles', id, oldUser, { full_name: fullName, phone: mobile, role, department, is_active: isActive });
+    showToast('User updated successfully!', 'success');
+    closeModal('editModal');
+    await loadUsers();
+}
+
+function openDelete(id, name) {
+    deleteTargetId = id;
+    document.getElementById('deleteUserName').textContent = name;
+    document.getElementById('deleteReason').value = '';
+    document.getElementById('otherReason').value = '';
+    document.getElementById('otherReasonGroup').style.display = 'none';
+    openModal('deleteModal');
+}
+
+async function deleteUser() {
+    const reason = document.getElementById('deleteReason').value;
+    const other  = document.getElementById('otherReason').value.trim();
+    if (!reason) { showToast('Please select a reason.', 'error'); return; }
+    if (reason === 'Other' && !other) { showToast('Please specify the reason.', 'error'); return; }
+
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting…';
+
+    const oldUser = allUsers.find(u => u.id === deleteTargetId);
+    // Soft delete: set inactive instead of hard delete
+    const { error } = await _supabase.from('user_profiles')
+        .update({ is_active: false }).eq('id', deleteTargetId);
+
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i> Delete';
+    if (error) { showToast(error.message, 'error'); return; }
+
+    await logAudit('DELETE_USER', 'user_profiles', deleteTargetId,
+        oldUser, { reason: reason === 'Other' ? other : reason });
+    showToast('User deactivated successfully.', 'success');
+    closeModal('deleteModal');
+    deleteTargetId = null;
+    await loadUsers();
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+</body>
+</html>
