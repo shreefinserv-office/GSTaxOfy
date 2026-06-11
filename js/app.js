@@ -102,3 +102,12 @@ function fmtDate(iso) {
 document.addEventListener('DOMContentLoaded', () => {
     setActiveNav();
 });
+
+// ── SW message listener ────────────────────────────────────
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', event => {
+        if (event.data && event.data.type === 'RELOAD_NOW') {
+            location.reload(true);
+        }
+    });
+}
