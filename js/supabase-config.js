@@ -4,8 +4,8 @@
 // Supabase Dashboard → Project Settings → API
 // ─────────────────────────────────────────────
 
-const SUPABASE_URL     = 'https://ghpgwnygnvawikhjybvq.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdocGd3bnlnbnZhd2lraGp5YnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTE1MjksImV4cCI6MjA5NjcyNzUyOX0.Jz7q4j8uM3CPQsAQrDLusmC68tgDOmhfaOZVv49OIHw';
+const SUPABASE_URL     = 'https://YOUR_PROJECT_ID.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_ANON_PUBLIC_KEY';
 
 // ─────────────────────────────────────────────
 // BASE PATH — for GitHub Pages hosting
@@ -17,7 +17,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // For local development (Live Server / python -m http.server):
 //   set BASE = ''
 // ─────────────────────────────────────────────
-const BASE = '/GSTaxOfy';   // ← change to '' for local dev
+const BASE = '/GStaxOfy';   // ← change to '' for local dev
 
 // Supabase JS v2 client
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -41,6 +41,7 @@ const ROUTES = {
     users:          () => BASE + '/pages/Masters/users.html',
     clients:        () => BASE + '/pages/Masters/clients.html',
     services:       () => BASE + '/pages/Masters/services.html',
+    backup:         () => BASE + '/pages/Masters/backup.html',
     createTask:     () => BASE + '/pages/Tasks/create-task.html',
     manageTasks:    () => BASE + '/pages/Tasks/manage-tasks.html',
     generateInvoice:() => BASE + '/pages/Invoices/generate.html',
