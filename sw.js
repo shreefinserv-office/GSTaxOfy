@@ -1,84 +1,97 @@
-// sw.js — GStaxOfy Service Worker
-const CACHE_NAME = 'gstaxofy-v1';
+// GStaxOfy Service Worker
+// To push an update: bump APP_VERSION below, commit to GitHub.
+// Users clicking "Check for Update" will get the new version automatically.
 
-// Files to cache for offline shell
-const STATIC_ASSETS = [
-    '/GStaxOfy/',
-    '/GStaxOfy/index.html',
-    '/GStaxOfy/css/style.css',
-    '/GStaxOfy/js/supabase-config.js',
-    '/GStaxOfy/js/app.js',
-    '/GStaxOfy/js/sidebar.js',
-    '/GStaxOfy/js/layout.js',
-    '/GStaxOfy/pages/dashboard.html',
-    '/GStaxOfy/pages/Masters/clients.html',
-    '/GStaxOfy/pages/Masters/firm-details.html',
-    '/GStaxOfy/pages/Masters/users.html',
-    '/GStaxOfy/pages/Masters/services.html',
-    '/GStaxOfy/pages/audit-log.html',
-    '/GStaxOfy/pages/change-password.html',
-    '/GStaxOfy/assets/logo.png',
-    '/GStaxOfy/assets/icon-192.png',
-    '/GStaxOfy/assets/icon-512.png',
-    'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
-    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-    'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
-];
+const APP_VERSION = '1.0.0';
+const CACHE_NAME  = 'gstaxofy-' + APP_VERSION;
+const CACHE_BASE  = 'gstaxofy';
 
-// Install: cache static assets
+// ── Install ──────────────────────────────────────────────────
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => {
-            console.log('[SW] Caching app shell');
-            // Cache individually so one failure doesn't break all
-            return Promise.allSettled(
-                STATIC_ASSETS.map(url => cache.add(url).catch(() => console.warn('[SW] Failed to cache:', url)))
-            );
+            const core = [
+                './index.html',
+                './css/style.css',
+                './js/supabase-config.js',
+                './js/app.js',
+                './js/sidebar.js',
+                './js/layout.js',
+                './manifest.json',
+                './assets/logo.png',
+                './assets/icon-192.png',
+                './assets/icon-512.png',
+                './pages/dashboard.html',
+                './pages/Masters/clients.html',
+                './pages/Masters/firm-details.html',
+                './pages/Masters/users.html',
+                './pages/Masters/services.html',
+                './pages/Masters/backup.html',
+                './pages/audit-log.html',
+                './pages/change-password.html',
+            ];
+            return Promise.allSettled(core.map(url => cache.add(url).catch(() => {})));
         }).then(() => self.skipWaiting())
     );
 });
 
-// Activate: remove old caches
+// ── Activate: delete old caches ──────────────────────────────
 self.addEventListener('activate', event => {
     event.waitUntil(
-        caches.keys().then(keys =>
-            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-        ).then(() => self.clients.claim())
+        caches.keys()
+            .then(keys => Promise.all(
+                keys.filter(k => k.startsWith(CACHE_BASE) && k !== CACHE_NAME)
+                    .map(k => {
+                        console.log('[SW] Deleting old cache:', k);
+                        return caches.delete(k);
+                    })
+            ))
+            .then(() => self.clients.claim())
     );
 });
 
-// Fetch: network-first for API calls, cache-first for static assets
+// ── Message handler ───────────────────────────────────────────
+self.addEventListener('message', event => {
+    // Called by "Check for Update" button — clears all caches and reloads
+    if (event.data && event.data.type === 'CLEAR_CACHE_AND_UPDATE') {
+        caches.keys().then(keys => {
+            Promise.all(keys.map(k => caches.delete(k))).then(() => {
+                self.clients.matchAll({ includeUncontrolled: true }).then(clients => {
+                    clients.forEach(c => c.postMessage({ type: 'RELOAD_NOW' }));
+                });
+            });
+        });
+    }
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+    // Page asking for current SW version
+    if (event.data && event.data.type === 'GET_VERSION') {
+        event.source.postMessage({ type: 'SW_VERSION', version: APP_VERSION });
+    }
+});
+
+// ── Fetch ─────────────────────────────────────────────────────
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Always go network-first for Supabase API calls
-    if (url.hostname.includes('supabase.co')) {
-        event.respondWith(
-            fetch(event.request).catch(() =>
-                new Response(JSON.stringify({ error: 'Offline — no network' }), {
-                    headers: { 'Content-Type': 'application/json' }
-                })
-            )
-        );
-        return;
-    }
+    // Always network-first for Supabase
+    if (url.hostname.includes('supabase.co')) return;
 
-    // Cache-first for everything else (HTML, CSS, JS, fonts)
+    // Cache-first for everything else
     event.respondWith(
         caches.match(event.request).then(cached => {
             if (cached) return cached;
             return fetch(event.request).then(response => {
-                // Cache successful GET responses
-                if (event.request.method === 'GET' && response.status === 200) {
+                if (response.ok && event.request.method === 'GET' &&
+                    url.origin === self.location.origin) {
                     const clone = response.clone();
                     caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
                 }
                 return response;
             }).catch(() => {
-                // Offline fallback for HTML navigation
-                if (event.request.destination === 'document') {
-                    return caches.match('/GStaxOfy/index.html');
-                }
+                if (event.request.headers.get('accept')?.includes('text/html'))
+                    return caches.match('./index.html');
             });
         })
     );
