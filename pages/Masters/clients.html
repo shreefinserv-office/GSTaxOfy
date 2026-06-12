@@ -253,7 +253,7 @@ async function loadClients() {
 }
 
 async function loadServices() {
-    const { data } = await _supabase.from('services').select('id, name').eq('is_active', true).order('name');
+    const { data } = await _supabase.from('services').select('id, name, description').eq('is_active', true).order('name').order('description');
     allServices = data || [];
 }
 
@@ -302,12 +302,15 @@ function filterClients() {
 function renderServicesGrid(selectedIds = []) {
     const grid = document.getElementById('servicesCheckboxGrid');
     if (!allServices.length) { grid.innerHTML = '<span class="text-muted">No services added yet.</span>'; return; }
-    grid.innerHTML = allServices.map(s => `
+    grid.innerHTML = allServices.map(s => {
+        const label = s.description ? `${s.name} — <span style="color:#6b7280;font-weight:400">${s.description}</span>` : s.name;
+        return `
         <label class="checkbox-item ${selectedIds.includes(s.id)?'checked':''}" id="svc_label_${s.id}">
             <input type="checkbox" value="${s.id}" ${selectedIds.includes(s.id)?'checked':''}
                 onchange="this.closest('.checkbox-item').classList.toggle('checked',this.checked)">
-            ${s.name}
-        </label>`).join('');
+            <span style="font-size:12px;line-height:1.4">${label}</span>
+        </label>`;
+    }).join('');
 }
 
 function getSelectedServiceIds() {

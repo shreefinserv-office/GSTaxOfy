@@ -8,9 +8,19 @@
     <link rel="manifest" href="../../manifest.json">
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        .stat-card { background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:16px 20px }
+        .stat-num  { font-size:26px;font-weight:800 }
+        .stat-lbl  { font-size:12px;color:#6b7280;font-weight:500;margin-top:2px }
+        .bar-wrap  { background:#e5e7eb;border-radius:999px;height:10px;margin-top:6px }
+        .bar-fill  { border-radius:999px;height:10px;transition:width .4s }
+        @media print {
+            .header,.sidebar,.section-header button { display:none!important }
+            .content-area { padding:0!important }
+        }
+    </style>
 </head>
 <body>
 <div class="app-container">
@@ -21,7 +31,8 @@
         </div>
         <div class="user-info" onclick="toggleUserDropdown()">
             <div class="user-avatar" id="headerAvatar">G</div>
-            <div class="user-details"><div class="user-name" id="headerUserName">Loading</div><div class="user-role" id="headerUserRole"></div></div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
             <div class="user-dropdown" id="userDropdown">
                 <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
                 <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
@@ -31,11 +42,44 @@
     <div class="main-content">
         <aside class="sidebar" id="sidebar-placeholder"></aside>
         <main class="content-area">
-            <div class="page-title"><i class="fas fa-chart-line"></i> Profitability</div>
-            <div style="text-align:center;padding:60px 20px;color:#9ca3af">
-                <i class="fas fa-chart-line" style="font-size:48px;margin-bottom:16px;display:block;color:#d1d5db"></i>
-                <p style="font-size:16px;margin-bottom:8px;color:#6b7280">Profitability module — Coming Soon</p>
-                <p style="font-size:13px">Auth, sidebar, and Supabase are already wired in. Content to be built next.</p>
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-chart-line"></i> Profitability Report</div>
+                <div style="display:flex;gap:8px">
+                    <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff" id="filterFY"></select>
+                    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div id="kpiRow" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px"></div>
+
+            <!-- Month-wise trend -->
+            <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:20px;margin-bottom:20px">
+                <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin:0 0 16px;display:flex;align-items:center;gap:8px"><i class="fas fa-chart-bar" style="color:#2563eb"></i> Month-wise Collection (FY)</h3>
+                <div id="monthChart"></div>
+            </div>
+
+            <!-- Two columns: Top clients + Service breakdown -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+                <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:20px">
+                    <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin:0 0 14px;display:flex;align-items:center;gap:8px"><i class="fas fa-users" style="color:#2563eb"></i> Top Clients by Revenue</h3>
+                    <div id="topClients"></div>
+                </div>
+                <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:20px">
+                    <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin:0 0 14px;display:flex;align-items:center;gap:8px"><i class="fas fa-tags" style="color:#2563eb"></i> Revenue by Service Type</h3>
+                    <div id="serviceBreakdown"></div>
+                </div>
+            </div>
+
+            <!-- Monthly details table -->
+            <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:20px">
+                <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin:0 0 14px;display:flex;align-items:center;gap:8px"><i class="fas fa-table" style="color:#2563eb"></i> Month-wise Detail</h3>
+                <div class="table-wrapper">
+                    <table>
+                        <thead><tr><th>Month</th><th>Invoices Raised</th><th>Amount Billed</th><th>Amount Collected</th><th>Outstanding</th><th>Collection %</th></tr></thead>
+                        <tbody id="monthTable"></tbody>
+                    </table>
+                </div>
             </div>
         </main>
     </div>
@@ -43,7 +87,7 @@
 <div class="modal-overlay" id="logoutModal">
     <div class="modal-box" style="max-width:340px">
         <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
-        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Logout?</p>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
         <div style="display:flex;gap:10px;justify-content:center">
             <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
             <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
@@ -56,6 +100,8 @@
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
+const MONTH_NAMES = ['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'];
+
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
@@ -63,8 +109,155 @@
     setActiveNav();
     const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
     if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+
+    // Populate FY selector
+    const now = new Date();
+    const curFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const sel = document.getElementById('filterFY');
+    for (let y = curFY; y >= curFY - 4; y--) {
+        sel.innerHTML += `<option value="${y}" ${y===curFY?'selected':''}>FY ${y}-${String(y+1).slice(2)}</option>`;
+    }
+    await loadData();
 })();
+
+function fmt(n) { return parseFloat(n||0).toLocaleString('en-IN',{minimumFractionDigits:2}); }
+
+async function loadData() {
+    const fy    = parseInt(document.getElementById('filterFY').value);
+    const from  = `${fy}-04-01`;
+    const to    = `${fy+1}-03-31`;
+
+    const [{ data: invoices }, { data: receipts }] = await Promise.all([
+        _supabase.from('invoices').select('id,invoice_date,total_amount,line_items,status,clients(name)').gte('invoice_date', from).lte('invoice_date', to),
+        _supabase.from('receipts').select('receipt_date,amount,invoice_id').gte('receipt_date', from).lte('receipt_date', to)
+    ]);
+
+    const invList = invoices || [];
+    const rcpList = receipts || [];
+
+    // Group receipts by invoice_id
+    const rcpByInv = {};
+    rcpList.forEach(r => { if (r.invoice_id) rcpByInv[r.invoice_id] = (rcpByInv[r.invoice_id]||0) + parseFloat(r.amount||0); });
+
+    // KPIs
+    const totalBilled    = invList.reduce((s,i) => s + parseFloat(i.total_amount||0), 0);
+    const totalCollected = rcpList.reduce((s,r) => s + parseFloat(r.amount||0), 0);
+    const totalOutstanding = Math.max(0, totalBilled - totalCollected);
+    const collPct = totalBilled ? Math.round((totalCollected/totalBilled)*100) : 0;
+
+    document.getElementById('kpiRow').innerHTML = [
+        { label:'Total Billed',      val:'₹'+fmt(totalBilled),       color:'#2563eb', bg:'#dbeafe' },
+        { label:'Total Collected',   val:'₹'+fmt(totalCollected),    color:'#059669', bg:'#dcfce7' },
+        { label:'Outstanding',       val:'₹'+fmt(totalOutstanding),  color:'#dc2626', bg:'#fee2e2' },
+        { label:'Collection Rate',   val:collPct+'%',                color:'#7c3aed', bg:'#ede9fe' },
+        { label:'Total Invoices',    val:invList.length,             color:'#0891b2', bg:'#cffafe' },
+    ].map(s=>`<div class="stat-card" style="border-color:${s.bg}">
+        <div class="stat-num" style="color:${s.color}">${s.val}</div>
+        <div class="stat-lbl">${s.label}</div>
+    </div>`).join('');
+
+    // Month-wise data (Apr=0 … Mar=11 in FY order)
+    const monthData = Array.from({length:12}, (_,i) => {
+        const m = (i + 3) % 12 + 1; // Apr=4, May=5 … Mar=3
+        const y = i < 9 ? fy : fy + 1;
+        const pad = v => String(v).padStart(2,'0');
+        const prefix = `${y}-${pad(m)}`;
+        const mInvs  = invList.filter(inv => inv.invoice_date?.startsWith(prefix));
+        const mRcps  = rcpList.filter(rcp => rcp.receipt_date?.startsWith(prefix));
+        const billed = mInvs.reduce((s,inv) => s + parseFloat(inv.total_amount||0), 0);
+        const coll   = mRcps.reduce((s,r)   => s + parseFloat(r.amount||0), 0);
+        return { label: MONTH_NAMES[i], billed, coll, count: mInvs.length };
+    });
+
+    // Bar chart (pure CSS/HTML)
+    const maxVal = Math.max(...monthData.map(m => Math.max(m.billed, m.coll)), 1);
+    document.getElementById('monthChart').innerHTML = `
+        <div style="display:flex;gap:6px;align-items:flex-end;height:140px;padding:0 4px">
+            ${monthData.map(m => `
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+                <div style="width:100%;display:flex;gap:2px;align-items:flex-end;height:110px">
+                    <div style="flex:1;background:#bfdbfe;border-radius:3px 3px 0 0;height:${Math.round((m.billed/maxVal)*100)}%;min-height:${m.billed?2:0}px;title='Billed: ₹${fmt(m.billed)}'"></div>
+                    <div style="flex:1;background:#6ee7b7;border-radius:3px 3px 0 0;height:${Math.round((m.coll/maxVal)*100)}%;min-height:${m.coll?2:0}px"></div>
+                </div>
+                <div style="font-size:10px;color:#9ca3af;font-weight:600">${m.label}</div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:16px;margin-top:8px;justify-content:center;font-size:11px;color:#6b7280">
+            <span><span style="display:inline-block;width:10px;height:10px;background:#bfdbfe;border-radius:2px;margin-right:4px"></span>Billed</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#6ee7b7;border-radius:2px;margin-right:4px"></span>Collected</span>
+        </div>`;
+
+    // Top clients
+    const clientMap = {};
+    invList.forEach(inv => {
+        const name = inv.clients?.name || 'Unknown';
+        if (!clientMap[name]) clientMap[name] = { billed: 0, collected: 0 };
+        const amt = parseFloat(inv.total_amount||0);
+        clientMap[name].billed += amt;
+        clientMap[name].collected += rcpByInv[inv.id] || 0;
+    });
+    const topClients = Object.entries(clientMap).sort((a,b) => b[1].billed - a[1].billed).slice(0,8);
+    const maxClient  = topClients[0]?.[1]?.billed || 1;
+    document.getElementById('topClients').innerHTML = topClients.length ? topClients.map(([name, d]) => `
+        <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+                <span style="font-weight:600;color:#1f2937;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+                <span style="color:#2563eb;font-weight:700">₹${fmt(d.billed)}</span>
+            </div>
+            <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round((d.billed/maxClient)*100)}%;background:#2563eb"></div></div>
+        </div>`).join('') : '<p style="color:#9ca3af;font-size:13px">No data for this period.</p>';
+
+    // Service breakdown from line_items JSONB
+    const svcMap = {};
+    invList.forEach(inv => {
+        let items = [];
+        try { items = typeof inv.line_items === 'string' ? JSON.parse(inv.line_items) : (inv.line_items||[]); } catch(e){}
+        items.forEach(li => {
+            const key = li.description || 'Other';
+            svcMap[key] = (svcMap[key]||0) + parseFloat(li.amount||0);
+        });
+    });
+    const topSvc    = Object.entries(svcMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const maxSvc    = topSvc[0]?.[1] || 1;
+    const svcColors = ['#2563eb','#059669','#7c3aed','#d97706','#dc2626','#0891b2','#db2777','#65a30d'];
+    document.getElementById('serviceBreakdown').innerHTML = topSvc.length ? topSvc.map(([name,amt],i) => `
+        <div style="margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+                <span style="font-weight:600;color:#1f2937;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${name}">${name}</span>
+                <span style="color:${svcColors[i%svcColors.length]};font-weight:700">₹${fmt(amt)}</span>
+            </div>
+            <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round((amt/maxSvc)*100)}%;background:${svcColors[i%svcColors.length]}"></div></div>
+        </div>`).join('') : '<p style="color:#9ca3af;font-size:13px">No line item data.</p>';
+
+    // Month table
+    let cumBilled = 0, cumColl = 0;
+    document.getElementById('monthTable').innerHTML = monthData.map(m => {
+        cumBilled += m.billed; cumColl += m.coll;
+        const outstanding = Math.max(0, m.billed - m.coll);
+        const pct = m.billed ? Math.round((m.coll/m.billed)*100) : 0;
+        return `<tr>
+            <td><strong>${m.label}</strong></td>
+            <td style="text-align:center">${m.count}</td>
+            <td>₹ ${fmt(m.billed)}</td>
+            <td style="color:#059669">₹ ${fmt(m.coll)}</td>
+            <td style="color:${outstanding>0?'#dc2626':'#059669'}">₹ ${fmt(outstanding)}</td>
+            <td>
+                <div style="display:flex;align-items:center;gap:6px">
+                    <div class="bar-wrap" style="width:60px"><div class="bar-fill" style="width:${Math.min(pct,100)}%;background:${pct>=80?'#059669':pct>=50?'#d97706':'#dc2626'}"></div></div>
+                    <span style="font-size:12px;font-weight:600">${pct}%</span>
+                </div>
+            </td>
+        </tr>`;
+    }).join('') + `<tr style="background:#f8fafc;font-weight:700">
+        <td>Total</td>
+        <td style="text-align:center">${invList.length}</td>
+        <td>₹ ${fmt(cumBilled)}</td>
+        <td style="color:#059669">₹ ${fmt(cumColl)}</td>
+        <td style="color:#dc2626">₹ ${fmt(Math.max(0,cumBilled-cumColl))}</td>
+        <td><strong style="color:#2563eb">${cumBilled?Math.round((cumColl/cumBilled)*100):0}%</strong></td>
+    </tr>`;
+}
 </script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{})}</script>
 </body>
 </html>

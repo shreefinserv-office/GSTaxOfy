@@ -21,7 +21,8 @@
         </div>
         <div class="user-info" onclick="toggleUserDropdown()">
             <div class="user-avatar" id="headerAvatar">G</div>
-            <div class="user-details"><div class="user-name" id="headerUserName">Loading</div><div class="user-role" id="headerUserRole"></div></div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
             <div class="user-dropdown" id="userDropdown">
                 <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
                 <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
@@ -31,31 +32,79 @@
     <div class="main-content">
         <aside class="sidebar" id="sidebar-placeholder"></aside>
         <main class="content-area">
-            <div class="page-title"><i class="fas fa-plus-circle"></i> Create Task</div>
-            <div style="text-align:center;padding:60px 20px;color:#9ca3af">
-                <i class="fas fa-plus-circle" style="font-size:48px;margin-bottom:16px;display:block;color:#d1d5db"></i>
-                <p style="font-size:16px;margin-bottom:8px;color:#6b7280">Create Task module — Coming Soon</p>
-                <p style="font-size:13px">Auth, sidebar, and Supabase are already wired in. Content to be built next.</p>
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-plus-circle"></i> Create Task</div>
+                <button class="btn btn-secondary" onclick="window.location.href=ROUTES.manageTasks()"><i class="fas fa-arrow-left"></i> Back to Tasks</button>
+            </div>
+
+            <div style="max-width:620px">
+                <div class="form-grid">
+                    <div class="form-group" style="grid-column:1/-1">
+                        <label>Client *</label>
+                        <select id="t_client" onchange="onClientChange()">
+                            <option value="">— Select Client —</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1">
+                        <label>Service *</label>
+                        <select id="t_service" onchange="onServiceChange()">
+                            <option value="">— Select Client First —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Period / Label *</label>
+                        <input type="text" id="t_period" placeholder="e.g. May 2026, FY 2025-26">
+                    </div>
+                    <div class="form-group">
+                        <label>Due Date *</label>
+                        <input type="date" id="t_due_date">
+                    </div>
+                    <div class="form-group">
+                        <label>Start Date</label>
+                        <input type="date" id="t_start_date">
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select id="t_status">
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1">
+                        <label>Notes</label>
+                        <textarea id="t_notes" rows="3" style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box" placeholder="Optional notes…"></textarea>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="window.location.href=ROUTES.manageTasks()">Cancel</button>
+                    <button class="btn btn-primary" id="saveTaskBtn" onclick="saveTask()"><i class="fas fa-save"></i> Create Task</button>
+                </div>
             </div>
         </main>
     </div>
 </div>
+
 <div class="modal-overlay" id="logoutModal">
     <div class="modal-box" style="max-width:340px">
         <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
-        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Logout?</p>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
         <div style="display:flex;gap:10px;justify-content:center">
             <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
             <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
         </div>
     </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../../js/supabase-config.js"></script>
 <script src="../../js/app.js"></script>
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
+let allClients = [];
+let clientServiceMap = {}; // client_id -> [{service_id, service}]
+
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
@@ -63,7 +112,99 @@
     setActiveNav();
     const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
     if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    await loadClients();
 })();
+
+async function loadClients() {
+    const { data } = await _supabase
+        .from('clients')
+        .select('id, name, client_services(service_id, services(id, name, description, frequency, deadline_day, deadline_month))')
+        .eq('is_active', true)
+        .order('name');
+    allClients = data || [];
+
+    clientServiceMap = {};
+    allClients.forEach(c => {
+        clientServiceMap[c.id] = (c.client_services || []).map(cs => cs.services).filter(Boolean);
+    });
+
+    const sel = document.getElementById('t_client');
+    sel.innerHTML = '<option value="">— Select Client —</option>' +
+        allClients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+function onClientChange() {
+    const cid = parseInt(document.getElementById('t_client').value);
+    const services = clientServiceMap[cid] || [];
+    const sel = document.getElementById('t_service');
+    if (!services.length) {
+        sel.innerHTML = '<option value="">— No services assigned —</option>';
+        return;
+    }
+    sel.innerHTML = '<option value="">— Select Service —</option>' +
+        services.map(s => `<option value="${s.id}">${s.name}${s.description ? ' — ' + s.description : ''}</option>`).join('');
+    document.getElementById('t_due_date').value = '';
+    document.getElementById('t_period').value = '';
+}
+
+function onServiceChange() {
+    const cid = parseInt(document.getElementById('t_client').value);
+    const sid = parseInt(document.getElementById('t_service').value);
+    if (!sid) return;
+    const svc = (clientServiceMap[cid] || []).find(s => s.id === sid);
+    if (!svc) return;
+
+    // Auto-fill due date suggestion based on frequency
+    const now = new Date();
+    const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    if (svc.frequency === 'Monthly') {
+        // Suggest current month's due date
+        const due = new Date(now.getFullYear(), now.getMonth(), svc.deadline_day);
+        document.getElementById('t_due_date').value = due.toISOString().split('T')[0];
+        const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth();
+        const prevYear  = now.getMonth() === 0 ? now.getFullYear()-1 : now.getFullYear();
+        document.getElementById('t_period').value = `${MONTHS[prevMonth]} ${prevYear}`;
+        document.getElementById('t_start_date').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    } else if (svc.frequency === 'Annually' && svc.deadline_month) {
+        const due = new Date(now.getFullYear(), svc.deadline_month - 1, svc.deadline_day);
+        document.getElementById('t_due_date').value = due.toISOString().split('T')[0];
+        document.getElementById('t_period').value = `FY ${now.getFullYear()}-${String(now.getFullYear()+1).slice(2)}`;
+    }
+}
+
+async function saveTask() {
+    const client_id   = parseInt(document.getElementById('t_client').value);
+    const service_id  = parseInt(document.getElementById('t_service').value) || null;
+    const period      = document.getElementById('t_period').value.trim();
+    const due_date    = document.getElementById('t_due_date').value;
+    const start_date  = document.getElementById('t_start_date').value || null;
+    const status      = document.getElementById('t_status').value;
+    const notes       = document.getElementById('t_notes').value.trim();
+
+    if (!client_id) { showToast('Please select a client.', 'error'); return; }
+    if (!period)    { showToast('Period / Label is required.', 'error'); return; }
+    if (!due_date)  { showToast('Due date is required.', 'error'); return; }
+
+    // Get task label
+    const cid = client_id;
+    const svc = service_id ? (clientServiceMap[cid]||[]).find(s => s.id === service_id) : null;
+    const task_label = svc ? `${svc.name}${svc.description ? ' — '+svc.description : ''}` : period;
+
+    const btn = document.getElementById('saveTaskBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    const { error } = await _supabase.from('tasks').insert({
+        client_id, service_id, period_label: period, due_date, start_date,
+        status, notes, task_label,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+    });
+
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Create Task';
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Task created successfully!', 'success');
+    setTimeout(() => window.location.href = ROUTES.manageTasks(), 1000);
+}
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
 </body>

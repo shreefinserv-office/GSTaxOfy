@@ -11,6 +11,47 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        .task-pick-item { display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .15s }
+        .task-pick-item:hover { border-color:#2563eb;background:#eff6ff }
+        .task-pick-item.selected { border-color:#2563eb;background:#eff6ff }
+        .task-pick-item input[type=checkbox] { accent-color:#2563eb;width:16px;height:16px;margin-top:2px;flex-shrink:0 }
+        .line-item-row { display:grid;grid-template-columns:1fr 60px 90px 28px;gap:8px;align-items:center;margin-bottom:8px }
+        .line-item-row input { padding:8px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box }
+        .line-item-row input:focus { outline:none;border-color:#2563eb }
+        .inv-preview { background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:32px;font-family:'Segoe UI',sans-serif }
+        .inv-header { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px }
+        .inv-firm-name { font-size:20px;font-weight:700;color:#1f2937 }
+        .inv-firm-sub  { font-size:12px;color:#6b7280;margin-top:2px }
+        .inv-title { text-align:right }
+        .inv-title h2 { font-size:28px;font-weight:800;color:#2563eb;letter-spacing:2px;margin:0 }
+        .inv-title p  { font-size:12px;color:#6b7280;margin:3px 0 0 }
+        .inv-divider { border:none;border-top:2px solid #e5e7eb;margin:16px 0 }
+        .inv-client-section { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px }
+        .inv-label  { font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#9ca3af;margin-bottom:2px;font-weight:600 }
+        .inv-value  { font-size:13px;color:#1f2937;font-weight:600 }
+        .inv-sub    { font-size:11px;color:#6b7280 }
+        .inv-table  { width:100%;border-collapse:collapse;margin-bottom:16px }
+        .inv-table th { background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb }
+        .inv-table td { padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#1f2937 }
+        .inv-table tr:last-child td { border-bottom:none }
+        .inv-total-row { display:flex;justify-content:flex-end;margin-top:8px }
+        .inv-total-box { background:#2563eb;color:#fff;border-radius:8px;padding:12px 20px;min-width:200px }
+        .inv-total-label { font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.5px }
+        .inv-total-amount { font-size:22px;font-weight:800;margin-top:2px }
+        .inv-words { font-size:11px;color:#6b7280;margin-top:10px;font-style:italic }
+        .inv-bank { margin-top:20px;background:#f8fafc;border-radius:8px;padding:14px 16px }
+        .inv-bank-title { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:8px;font-weight:700 }
+        .inv-bank-grid { display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px }
+        .inv-bank-grid .k { color:#6b7280 }
+        .inv-bank-grid .v { color:#1f2937;font-weight:600 }
+        .inv-footer { margin-top:24px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px }
+        @media print {
+            body * { visibility:hidden }
+            #printArea, #printArea * { visibility:visible }
+            #printArea { position:absolute;left:0;top:0;width:100%;padding:20px;box-sizing:border-box }
+        }
+    </style>
 </head>
 <body>
 <div class="app-container">
@@ -21,7 +62,8 @@
         </div>
         <div class="user-info" onclick="toggleUserDropdown()">
             <div class="user-avatar" id="headerAvatar">G</div>
-            <div class="user-details"><div class="user-name" id="headerUserName">Loading</div><div class="user-role" id="headerUserRole"></div></div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
             <div class="user-dropdown" id="userDropdown">
                 <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
                 <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
@@ -31,39 +73,381 @@
     <div class="main-content">
         <aside class="sidebar" id="sidebar-placeholder"></aside>
         <main class="content-area">
-            <div class="page-title"><i class="fas fa-file-invoice"></i> Generate Invoice</div>
-            <div style="text-align:center;padding:60px 20px;color:#9ca3af">
-                <i class="fas fa-file-invoice" style="font-size:48px;margin-bottom:16px;display:block;color:#d1d5db"></i>
-                <p style="font-size:16px;margin-bottom:8px;color:#6b7280">Generate Invoice module — Coming Soon</p>
-                <p style="font-size:13px">Auth, sidebar, and Supabase are already wired in. Content to be built next.</p>
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-file-invoice"></i> Generate Invoice</div>
+                <button class="btn btn-secondary" onclick="window.location.href=ROUTES.invoiceList()"><i class="fas fa-list"></i> All Invoices</button>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+                <!-- LEFT: Form -->
+                <div>
+                    <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:20px">
+                        <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin:0 0 16px;display:flex;align-items:center;gap:8px"><i class="fas fa-edit" style="color:#2563eb"></i> Invoice Details</h3>
+
+                        <div class="form-group" style="margin-bottom:12px">
+                            <label style="font-size:12px">Invoice No. *</label>
+                            <input type="text" id="inv_no" placeholder="e.g. IN2526/058" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box">
+                        </div>
+                        <div class="form-group" style="margin-bottom:12px">
+                            <label style="font-size:12px">Invoice Date *</label>
+                            <input type="date" id="inv_date" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box">
+                        </div>
+                        <div class="form-group" style="margin-bottom:16px">
+                            <label style="font-size:12px">Client *</label>
+                            <select id="inv_client" onchange="onInvClientChange()" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box;background:#fff">
+                                <option value="">— Select Client —</option>
+                            </select>
+                        </div>
+
+                        <!-- Task picker -->
+                        <div id="taskPickerSection" style="display:none;margin-bottom:16px">
+                            <label style="font-size:12px;font-weight:600;color:#374151;display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                                <i class="fas fa-tasks" style="color:#2563eb"></i> Select Completed Tasks (optional)
+                            </label>
+                            <div id="taskPickerList" style="max-height:200px;overflow-y:auto"></div>
+                        </div>
+
+                        <!-- Line items -->
+                        <div style="margin-bottom:16px">
+                            <label style="font-size:12px;font-weight:600;color:#374151;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                                <span><i class="fas fa-list" style="color:#2563eb"></i> Line Items *</span>
+                                <button class="btn btn-secondary btn-sm" onclick="addLineItem()"><i class="fas fa-plus"></i> Add Row</button>
+                            </label>
+                            <div style="display:grid;grid-template-columns:1fr 60px 90px 28px;gap:8px;margin-bottom:4px">
+                                <span style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Description</span>
+                                <span style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">SAC</span>
+                                <span style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">Amount</span>
+                                <span></span>
+                            </div>
+                            <div id="lineItemsContainer"></div>
+                            <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #f3f4f6">
+                                <span style="font-size:13px;color:#6b7280;font-weight:600">Total:</span>
+                                <span style="font-size:16px;font-weight:800;color:#2563eb" id="lineTotal">₹0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom:16px">
+                            <label style="font-size:12px">Notes (printed on invoice)</label>
+                            <textarea id="inv_notes" rows="2" placeholder="e.g. Thank you for your business." style="resize:vertical;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box"></textarea>
+                        </div>
+
+                        <div style="display:flex;gap:8px">
+                            <button class="btn btn-secondary" style="flex:1" onclick="refreshPreview()"><i class="fas fa-eye"></i> Preview</button>
+                            <button class="btn btn-primary" style="flex:1" id="saveInvBtn" onclick="saveInvoice()"><i class="fas fa-save"></i> Save Invoice</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: Preview -->
+                <div>
+                    <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:20px">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                            <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin:0;display:flex;align-items:center;gap:8px"><i class="fas fa-file-pdf" style="color:#dc2626"></i> Invoice Preview</h3>
+                            <button class="btn btn-danger btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i> Print / PDF</button>
+                        </div>
+                        <div id="printArea">
+                            <div class="inv-preview" id="invoicePreview">
+                                <div style="text-align:center;padding:40px;color:#d1d5db">
+                                    <i class="fas fa-file-invoice" style="font-size:40px;display:block;margin-bottom:10px"></i>
+                                    <p style="font-size:13px;color:#9ca3af">Fill in details and click Preview</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
 </div>
+
 <div class="modal-overlay" id="logoutModal">
     <div class="modal-box" style="max-width:340px">
         <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
-        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Logout?</p>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
         <div style="display:flex;gap:10px;justify-content:center">
             <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
             <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
         </div>
     </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../../js/supabase-config.js"></script>
 <script src="../../js/app.js"></script>
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
+let allClients = [];
+let firmData   = {};
+let clientTasks = [];
+let lineItemCount = 0;
+
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
     renderSidebar('generate-invoice');
     setActiveNav();
-    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
-    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+
+    // Set today as default date
+    document.getElementById('inv_date').value = new Date().toISOString().split('T')[0];
+
+    // Load firm data + clients in parallel
+    const [{ data: firm }, { data: clients }] = await Promise.all([
+        _supabase.from('firm_details').select('*').single(),
+        _supabase.from('clients').select('id, name, address, contact_no, email_id, gst_no').eq('is_active', true).order('name')
+    ]);
+
+    if (firm) {
+        firmData = firm;
+        document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    }
+    allClients = clients || [];
+
+    const sel = document.getElementById('inv_client');
+    allClients.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+
+    // Auto-generate invoice number
+    const { count } = await _supabase.from('invoices').select('id', { count: 'exact', head: true });
+    const now = new Date();
+    const fy  = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const fyStr = String(fy).slice(2) + String(fy+1).slice(2);
+    document.getElementById('inv_no').value = `IN${fyStr}/${String((count||0)+1).padStart(3,'0')}`;
+
+    addLineItem(); // start with 1 empty row
 })();
+
+async function onInvClientChange() {
+    const cid = parseInt(document.getElementById('inv_client').value);
+    if (!cid) { document.getElementById('taskPickerSection').style.display='none'; return; }
+
+    // Load completed tasks for this client
+    const { data: tasks } = await _supabase
+        .from('tasks')
+        .select('id, task_label, period_label, due_date, status, services(name, description)')
+        .eq('client_id', cid)
+        .eq('status', 'completed')
+        .order('due_date', { ascending: false });
+
+    clientTasks = tasks || [];
+    const section = document.getElementById('taskPickerSection');
+    const list    = document.getElementById('taskPickerList');
+
+    if (!clientTasks.length) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    list.innerHTML = clientTasks.map(t => {
+        const svcLabel = t.services ? `${t.services.name}${t.services.description ? ' — '+t.services.description : ''}` : (t.task_label||'');
+        return `<label class="task-pick-item" id="tpick_${t.id}">
+            <input type="checkbox" value="${t.id}" data-label="${svcLabel}" data-period="${t.period_label||''}"
+                onchange="document.getElementById('tpick_'+this.value).classList.toggle('selected',this.checked);onTaskPickChange()">
+            <div>
+                <div style="font-size:13px;font-weight:600;color:#1f2937">${svcLabel}</div>
+                <div style="font-size:11px;color:#6b7280">${t.period_label||''} ${t.due_date ? '· Due: '+fmtDate(t.due_date) : ''}</div>
+            </div>
+        </label>`;
+    }).join('');
+}
+
+function onTaskPickChange() {
+    // Add a line item for each newly checked task (if not already present)
+    const checked = [...document.querySelectorAll('#taskPickerList input[type=checkbox]:checked')];
+    // Get existing descriptions
+    const existing = [...document.querySelectorAll('.li-desc')].map(el => el.value);
+    checked.forEach(cb => {
+        const desc = `${cb.dataset.label}${cb.dataset.period ? ' for the Period of ' + cb.dataset.period : ''}`;
+        if (!existing.includes(desc)) {
+            addLineItem(desc, '', '');
+        }
+    });
+}
+
+// Line items
+function addLineItem(desc='', sac='', amount='') {
+    lineItemCount++;
+    const id = lineItemCount;
+    const row = document.createElement('div');
+    row.className = 'line-item-row';
+    row.id = `li_${id}`;
+    row.innerHTML = `
+        <input type="text" class="li-desc" placeholder="Description" value="${desc}" oninput="calcTotal()">
+        <input type="text" class="li-sac"  placeholder="SAC" value="${sac}" style="text-align:center">
+        <input type="number" class="li-amt" placeholder="₹0" value="${amount}" min="0" step="0.01" oninput="calcTotal()" style="text-align:right">
+        <button onclick="document.getElementById('li_${id}').remove();calcTotal()" style="background:none;border:none;cursor:pointer;color:#dc2626;padding:4px;font-size:15px"><i class="fas fa-times"></i></button>`;
+    document.getElementById('lineItemsContainer').appendChild(row);
+    calcTotal();
+}
+
+function getLineItems() {
+    return [...document.querySelectorAll('.line-item-row')].map(row => ({
+        description: row.querySelector('.li-desc').value.trim(),
+        sac:         row.querySelector('.li-sac').value.trim(),
+        amount:      parseFloat(row.querySelector('.li-amt').value) || 0
+    })).filter(li => li.description);
+}
+
+function calcTotal() {
+    const total = getLineItems().reduce((s, li) => s + li.amount, 0);
+    document.getElementById('lineTotal').textContent = '₹' + total.toFixed(2);
+}
+
+// ── PREVIEW ──────────────────────────────────────────────────
+function refreshPreview() {
+    const invNo   = document.getElementById('inv_no').value.trim();
+    const invDate = document.getElementById('inv_date').value;
+    const cid     = parseInt(document.getElementById('inv_client').value);
+    const notes   = document.getElementById('inv_notes').value.trim();
+    const items   = getLineItems();
+    const client  = allClients.find(c => c.id === cid);
+    const total   = items.reduce((s, li) => s + li.amount, 0);
+
+    if (!invNo || !invDate || !client || !items.length) {
+        showToast('Fill Invoice No., Date, Client and at least one line item.', 'error');
+        return;
+    }
+
+    const dateStr = new Date(invDate).toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+    // Build bank section
+    let bankHtml = '';
+    if (firmData.bank_name || firmData.bank_acc_no || firmData.bank_upi) {
+        bankHtml = `<div class="inv-bank">
+            <div class="inv-bank-title"><i class="fas fa-university"></i> Bank Details for NEFT / RTGS / UPI</div>
+            <div class="inv-bank-grid">
+                ${firmData.bank_holder_name ? `<span class="k">Account Holder</span><span class="v">${firmData.bank_holder_name}</span>` : ''}
+                ${firmData.bank_name ? `<span class="k">Bank Name</span><span class="v">${firmData.bank_name}</span>` : ''}
+                ${firmData.bank_acc_no ? `<span class="k">Account No.</span><span class="v">${firmData.bank_acc_no} (${firmData.bank_acc_type||'Saving'})</span>` : ''}
+                ${firmData.bank_ifsc ? `<span class="k">IFSC Code</span><span class="v">${firmData.bank_ifsc}</span>` : ''}
+                ${firmData.bank_upi ? `<span class="k">UPI ID</span><span class="v">${firmData.bank_upi}</span>` : ''}
+            </div>
+        </div>`;
+    }
+
+    document.getElementById('invoicePreview').innerHTML = `
+        <div class="inv-header">
+            <div>
+                <div class="inv-firm-name">${firmData.firm_name||''}</div>
+                <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/\n/g,', ')}</div>
+                <div class="inv-firm-sub">${firmData.phone||''} ${firmData.email_id ? '| '+firmData.email_id : ''}</div>
+                ${firmData.registration_no ? `<div class="inv-firm-sub">Reg. No.: ${firmData.registration_no}</div>` : ''}
+            </div>
+            <div class="inv-title">
+                <h2>INVOICE</h2>
+                <p>No. ${invNo}</p>
+                <p>Date: ${dateStr}</p>
+            </div>
+        </div>
+        <hr class="inv-divider">
+        <div class="inv-client-section">
+            <div>
+                <div class="inv-label">Bill To</div>
+                <div class="inv-value">${client.name}</div>
+                <div class="inv-sub">${client.address||''}</div>
+                <div class="inv-sub">${client.contact_no||''}</div>
+            </div>
+            <div>
+                ${client.gst_no ? `<div class="inv-label">GST No.</div><div class="inv-value">${client.gst_no}</div>` : ''}
+            </div>
+        </div>
+        <table class="inv-table">
+            <thead><tr><th>#</th><th>Description</th><th>SAC</th><th style="text-align:right">Amount</th></tr></thead>
+            <tbody>
+                ${items.map((li,i) => `<tr>
+                    <td>${i+1}</td>
+                    <td>${li.description}</td>
+                    <td style="color:#6b7280">${li.sac||'—'}</td>
+                    <td style="text-align:right;font-weight:600">₹ ${li.amount.toFixed(2)}</td>
+                </tr>`).join('')}
+            </tbody>
+        </table>
+        <div class="inv-total-row">
+            <div class="inv-total-box">
+                <div class="inv-total-label">Total Amount</div>
+                <div class="inv-total-amount">₹ ${total.toFixed(2)}/-</div>
+            </div>
+        </div>
+        <div class="inv-words">Amount in Words: <em>${amountToWords(total)} Rupees Only</em></div>
+        ${bankHtml}
+        ${notes ? `<div style="margin-top:16px;font-size:12px;color:#1f2937">${notes}</div>` : ''}
+        <div class="inv-footer">This is a computer generated invoice. No signature required.</div>
+    `;
+}
+
+function printInvoice() {
+    refreshPreview();
+    setTimeout(() => window.print(), 300);
+}
+
+async function saveInvoice() {
+    const invNo   = document.getElementById('inv_no').value.trim();
+    const invDate = document.getElementById('inv_date').value;
+    const cid     = parseInt(document.getElementById('inv_client').value);
+    const notes   = document.getElementById('inv_notes').value.trim();
+    const items   = getLineItems();
+    const total   = items.reduce((s, li) => s + li.amount, 0);
+    const taskIds = [...document.querySelectorAll('#taskPickerList input[type=checkbox]:checked')].map(cb => parseInt(cb.value));
+
+    if (!invNo)  { showToast('Invoice number required.', 'error'); return; }
+    if (!invDate){ showToast('Invoice date required.', 'error'); return; }
+    if (!cid)    { showToast('Select a client.', 'error'); return; }
+    if (!items.length) { showToast('Add at least one line item.', 'error'); return; }
+
+    const btn = document.getElementById('saveInvBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        const { data: inv, error } = await _supabase.from('invoices').insert({
+            invoice_no:   invNo,
+            invoice_date: invDate,
+            client_id:    cid,
+            line_items:   JSON.stringify(items),
+            total_amount: total,
+            notes,
+            status:       'unpaid',
+            created_at:   new Date().toISOString(),
+            updated_at:   new Date().toISOString()
+        }).select('id').single();
+        if (error) throw new Error(error.message);
+
+        // Save task links
+        if (taskIds.length && inv?.id) {
+            await _supabase.from('invoice_tasks').insert(taskIds.map(tid => ({ invoice_id: inv.id, task_id: tid })));
+        }
+
+        refreshPreview();
+        showToast('Invoice saved!', 'success');
+        await logAudit('CREATE_INVOICE', 'invoices', inv?.id, null, { invNo, total });
+    } catch(err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Invoice';
+    }
+}
+
+// ── Number to Words ──────────────────────────────────────────
+function amountToWords(amount) {
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+        'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    function twoDigit(n) {
+        if (n < 20) return ones[n];
+        return tens[Math.floor(n/10)] + (n%10 ? ' ' + ones[n%10] : '');
+    }
+    function threeDigit(n) {
+        if (n >= 100) return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' ' + twoDigit(n%100) : '');
+        return twoDigit(n);
+    }
+    const n = Math.floor(amount);
+    if (n === 0) return 'Zero';
+    let result = '';
+    if (n >= 10000000) result += threeDigit(Math.floor(n/10000000)) + ' Crore ';
+    if (n >= 100000)   result += threeDigit(Math.floor((n%10000000)/100000)) + ' Lakh ';
+    if (n >= 1000)     result += threeDigit(Math.floor((n%100000)/1000)) + ' Thousand ';
+    result += threeDigit(n%1000);
+    return result.trim();
+}
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
 </body>

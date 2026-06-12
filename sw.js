@@ -2,7 +2,7 @@
 // To push an update: bump APP_VERSION below, commit to GitHub.
 // Users clicking "Check for Update" will get the new version automatically.
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const CACHE_NAME  = 'gstaxofy-' + APP_VERSION;
 const CACHE_BASE  = 'gstaxofy';
 
@@ -27,6 +27,16 @@ self.addEventListener('install', event => {
                 './pages/Masters/users.html',
                 './pages/Masters/services.html',
                 './pages/Masters/backup.html',
+                './pages/Tasks/manage-tasks.html',
+                './pages/Tasks/create-task.html',
+                './pages/Invoices/generate.html',
+                './pages/Invoices/list.html',
+                './pages/Receipts/generate.html',
+                './pages/Receipts/list.html',
+                './pages/Reports/account-ledger.html',
+                './pages/Reports/work-log.html',
+                './pages/Reports/receivables.html',
+                './pages/Reports/profitability.html',
                 './pages/audit-log.html',
                 './pages/change-password.html',
             ];
@@ -52,7 +62,6 @@ self.addEventListener('activate', event => {
 
 // ── Message handler ───────────────────────────────────────────
 self.addEventListener('message', event => {
-    // Called by "Check for Update" button — clears all caches and reloads
     if (event.data && event.data.type === 'CLEAR_CACHE_AND_UPDATE') {
         caches.keys().then(keys => {
             Promise.all(keys.map(k => caches.delete(k))).then(() => {
@@ -65,7 +74,6 @@ self.addEventListener('message', event => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
-    // Page asking for current SW version
     if (event.data && event.data.type === 'GET_VERSION') {
         event.source.postMessage({ type: 'SW_VERSION', version: APP_VERSION });
     }
@@ -75,10 +83,28 @@ self.addEventListener('message', event => {
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Always network-first for Supabase
-    if (url.hostname.includes('supabase.co')) return;
+    // Always network-first for Supabase & CDN resources
+    if (url.hostname.includes('supabase.co') ||
+        url.hostname.includes('cdnjs.cloudflare.com') ||
+        url.hostname.includes('cdn.jsdelivr.net')) return;
 
-    // Cache-first for everything else
+    // Network-first for HTML pages (so updates propagate)
+    if (event.request.headers.get('accept')?.includes('text/html')) {
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    if (response.ok && event.request.method === 'GET') {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(event.request).then(cached => cached || caches.match('./index.html')))
+        );
+        return;
+    }
+
+    // Cache-first for assets (CSS, JS, images)
     event.respondWith(
         caches.match(event.request).then(cached => {
             if (cached) return cached;
@@ -89,10 +115,7 @@ self.addEventListener('fetch', event => {
                     caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
                 }
                 return response;
-            }).catch(() => {
-                if (event.request.headers.get('accept')?.includes('text/html'))
-                    return caches.match('./index.html');
-            });
+            }).catch(() => {});
         })
     );
 });

@@ -11,6 +11,27 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        .status-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600 }
+        .status-pending   { background:#fef9c3;color:#854d0e }
+        .status-in_progress { background:#dbeafe;color:#1e40af }
+        .status-completed { background:#dcfce7;color:#14532d }
+        .status-overdue   { background:#fee2e2;color:#991b1b }
+        .filter-bar { display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px }
+        .filter-bar select, .filter-bar input { padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff }
+        .filter-bar select:focus, .filter-bar input:focus { outline:none;border-color:#2563eb }
+        .task-card { background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:14px 16px;margin-bottom:10px;transition:box-shadow .15s }
+        .task-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.07) }
+        .task-card-header { display:flex;align-items:flex-start;justify-content:space-between;gap:8px }
+        .task-client { font-weight:700;font-size:14px;color:#1f2937 }
+        .task-service { font-size:12px;color:#6b7280;margin-top:2px }
+        .task-meta { display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#6b7280 }
+        .task-meta span { display:flex;align-items:center;gap:4px }
+        .overdue-row { background:#fff5f5 }
+        .gen-result { max-height:300px;overflow-y:auto;margin-top:12px }
+        .gen-row { display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:13px }
+        .gen-row:last-child { border-bottom:none }
+    </style>
 </head>
 <body>
 <div class="app-container">
@@ -21,7 +42,8 @@
         </div>
         <div class="user-info" onclick="toggleUserDropdown()">
             <div class="user-avatar" id="headerAvatar">G</div>
-            <div class="user-details"><div class="user-name" id="headerUserName">Loading</div><div class="user-role" id="headerUserRole"></div></div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
             <div class="user-dropdown" id="userDropdown">
                 <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
                 <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
@@ -31,31 +53,136 @@
     <div class="main-content">
         <aside class="sidebar" id="sidebar-placeholder"></aside>
         <main class="content-area">
-            <div class="page-title"><i class="fas fa-tasks"></i> Manage Tasks</div>
-            <div style="text-align:center;padding:60px 20px;color:#9ca3af">
-                <i class="fas fa-tasks" style="font-size:48px;margin-bottom:16px;display:block;color:#d1d5db"></i>
-                <p style="font-size:16px;margin-bottom:8px;color:#6b7280">Manage Tasks module — Coming Soon</p>
-                <p style="font-size:13px">Auth, sidebar, and Supabase are already wired in. Content to be built next.</p>
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-tasks"></i> Manage Tasks</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                    <button class="btn btn-secondary" onclick="openModal('genModal')"><i class="fas fa-magic"></i> Auto-Generate Tasks</button>
+                    <button class="btn btn-primary" onclick="window.location.href=ROUTES.createTask()"><i class="fas fa-plus"></i> Create Task</button>
+                </div>
             </div>
+
+            <!-- Filter bar -->
+            <div class="filter-bar">
+                <input type="text" id="searchInput" placeholder="Search client / service…" oninput="applyFilters()" style="min-width:180px">
+                <select id="filterStatus" onchange="applyFilters()">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="overdue">Overdue</option>
+                </select>
+                <select id="filterMonth" onchange="applyFilters()">
+                    <option value="">All Months</option>
+                    <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+                    <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                    <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                    <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                </select>
+                <select id="filterClient" onchange="applyFilters()">
+                    <option value="">All Clients</option>
+                </select>
+                <button class="btn btn-secondary btn-sm" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+
+            <div id="taskStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px"></div>
+            <div id="taskList"><div style="text-align:center;padding:40px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</div></div>
         </main>
     </div>
 </div>
+
+<!-- Auto-Generate Modal -->
+<div class="modal-overlay" id="genModal">
+    <div class="modal-box" style="max-width:560px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-magic" style="color:#2563eb;margin-right:8px"></i>Auto-Generate Tasks</span>
+            <button class="modal-close" onclick="closeModal('genModal')">&times;</button>
+        </div>
+        <p style="font-size:13px;color:#6b7280;margin-bottom:16px">
+            Generates tasks for all active clients based on their assigned services and due dates. Skips tasks already created for the same client+service+period.
+        </p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>For Month</label>
+                <select id="genMonth">
+                    <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+                    <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                    <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                    <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>For Year</label>
+                <select id="genYear"></select>
+            </div>
+        </div>
+        <div id="genResults" class="gen-result" style="display:none"></div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('genModal')">Close</button>
+            <button class="btn btn-primary" id="genBtn" onclick="generateTasks()"><i class="fas fa-magic"></i> Generate</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Task Modal -->
+<div class="modal-overlay" id="editTaskModal">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Update Task</span>
+            <button class="modal-close" onclick="closeModal('editTaskModal')">&times;</button>
+        </div>
+        <input type="hidden" id="et_id">
+        <div class="form-group" style="margin-bottom:14px">
+            <label>Status</label>
+            <select id="et_status">
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+            <label>Notes</label>
+            <textarea id="et_notes" rows="3" style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box"></textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('editTaskModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTaskStatus()"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Task Modal -->
+<div class="modal-overlay" id="deleteTaskModal">
+    <div class="modal-box" style="max-width:360px">
+        <div class="modal-header"><span class="modal-title" style="color:#dc2626"><i class="fas fa-exclamation-triangle" style="margin-right:8px"></i>Delete Task</span><button class="modal-close" onclick="closeModal('deleteTaskModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px">Delete this task permanently?</p>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-secondary" onclick="closeModal('deleteTaskModal')">Cancel</button>
+            <button class="btn btn-danger" id="confirmDeleteTaskBtn" onclick="deleteTask()"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal-overlay" id="logoutModal">
     <div class="modal-box" style="max-width:340px">
         <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
-        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Logout?</p>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
         <div style="display:flex;gap:10px;justify-content:center">
             <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
             <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
         </div>
     </div>
 </div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../../js/supabase-config.js"></script>
 <script src="../../js/app.js"></script>
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
+let allTasks = [];
+let deleteTargetTaskId = null;
+const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
@@ -63,7 +190,272 @@
     setActiveNav();
     const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
     if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+
+    // Set default gen month/year
+    const now = new Date();
+    document.getElementById('genMonth').value = now.getMonth() + 1;
+    const yrSel = document.getElementById('genYear');
+    for (let y = now.getFullYear() - 1; y <= now.getFullYear() + 1; y++) {
+        yrSel.innerHTML += `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`;
+    }
+
+    await loadTasks();
 })();
+
+async function loadTasks() {
+    const { data, error } = await _supabase
+        .from('tasks')
+        .select('*, clients(name), services(name, description)')
+        .order('due_date', { ascending: true });
+    if (error) { showToast('Failed to load tasks.', 'error'); return; }
+    allTasks = (data || []).map(t => {
+        // Auto-mark overdue
+        if (t.status !== 'completed' && t.due_date && new Date(t.due_date) < new Date()) {
+            t._overdue = true;
+        }
+        return t;
+    });
+    populateClientFilter();
+    renderStats();
+    applyFilters();
+}
+
+function populateClientFilter() {
+    const sel = document.getElementById('filterClient');
+    const names = [...new Set(allTasks.map(t => t.clients?.name).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All Clients</option>' + names.map(n => `<option value="${n}">${n}</option>`).join('');
+}
+
+function renderStats() {
+    const counts = { pending:0, in_progress:0, completed:0, overdue:0 };
+    allTasks.forEach(t => {
+        if (t._overdue) counts.overdue++;
+        else if (counts[t.status] !== undefined) counts[t.status]++;
+    });
+    document.getElementById('taskStats').innerHTML = [
+        { label:'Pending', count:counts.pending, color:'#854d0e', bg:'#fef9c3' },
+        { label:'In Progress', count:counts.in_progress, color:'#1e40af', bg:'#dbeafe' },
+        { label:'Completed', count:counts.completed, color:'#14532d', bg:'#dcfce7' },
+        { label:'Overdue', count:counts.overdue, color:'#991b1b', bg:'#fee2e2' },
+    ].map(s => `<div style="background:${s.bg};border-radius:8px;padding:8px 16px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:20px;font-weight:700;color:${s.color}">${s.count}</span>
+        <span style="font-size:12px;color:${s.color};font-weight:600">${s.label}</span>
+    </div>`).join('');
+}
+
+function applyFilters() {
+    const q    = document.getElementById('searchInput').value.toLowerCase();
+    const st   = document.getElementById('filterStatus').value;
+    const mo   = document.getElementById('filterMonth').value;
+    const cl   = document.getElementById('filterClient').value;
+
+    const filtered = allTasks.filter(t => {
+        const effStatus = t._overdue ? 'overdue' : t.status;
+        if (st && effStatus !== st) return false;
+        if (cl && t.clients?.name !== cl) return false;
+        if (mo && t.due_date) {
+            const m = new Date(t.due_date).getMonth() + 1;
+            if (String(m) !== mo) return false;
+        }
+        if (q) {
+            const hay = ((t.clients?.name||'') + (t.services?.name||'') + (t.services?.description||'') + (t.task_label||'')).toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+    renderTasks(filtered);
+}
+
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterMonth').value = '';
+    document.getElementById('filterClient').value = '';
+    applyFilters();
+}
+
+function renderTasks(tasks) {
+    const el = document.getElementById('taskList');
+    if (!tasks.length) {
+        el.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af"><i class="fas fa-check-circle" style="font-size:36px;display:block;margin-bottom:10px;color:#d1d5db"></i>No tasks found.</div>';
+        return;
+    }
+    el.innerHTML = '<div class="table-wrapper"><table><thead><tr><th>#</th><th>Client</th><th>Service</th><th>Period</th><th>Due Date</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
+        tasks.map((t, i) => {
+            const effStatus = t._overdue ? 'overdue' : t.status;
+            const statusLabel = { pending:'Pending', in_progress:'In Progress', completed:'Completed', overdue:'Overdue' };
+            const svcLabel = t.services ? (t.services.description ? `${t.services.name} — ${t.services.description}` : t.services.name) : (t.task_label||'—');
+            return `<tr class="${t._overdue?'overdue-row':''}">
+                <td>${i+1}</td>
+                <td><strong>${t.clients?.name||'—'}</strong></td>
+                <td style="font-size:12px">${svcLabel}</td>
+                <td style="font-size:12px;color:#6b7280">${t.period_label||'—'}</td>
+                <td style="font-size:12px;white-space:nowrap">${fmtDate(t.due_date)}</td>
+                <td><span class="status-badge status-${effStatus}">${statusLabel[effStatus]||effStatus}</span></td>
+                <td style="font-size:12px;color:#6b7280;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.notes||''}">${t.notes||'—'}</td>
+                <td style="white-space:nowrap">
+                    <button class="btn btn-secondary btn-sm" onclick="openEditTask(${t.id},'${t.status}',${JSON.stringify(t.notes||'').replace(/'/g,"\\'")})" title="Update"><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDeleteTask(${t.id})" title="Delete"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`;
+        }).join('') +
+        '</tbody></table></div>';
+}
+
+function openEditTask(id, status, notes) {
+    document.getElementById('et_id').value = id;
+    document.getElementById('et_status').value = status;
+    document.getElementById('et_notes').value = notes || '';
+    openModal('editTaskModal');
+}
+
+async function saveTaskStatus() {
+    const id     = parseInt(document.getElementById('et_id').value);
+    const status = document.getElementById('et_status').value;
+    const notes  = document.getElementById('et_notes').value.trim();
+    const { error } = await _supabase.from('tasks').update({ status, notes, updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Task updated.', 'success');
+    closeModal('editTaskModal');
+    await loadTasks();
+}
+
+function openDeleteTask(id) {
+    deleteTargetTaskId = id;
+    openModal('deleteTaskModal');
+}
+
+async function deleteTask() {
+    const btn = document.getElementById('confirmDeleteTaskBtn');
+    btn.disabled = true;
+    const { error } = await _supabase.from('tasks').delete().eq('id', deleteTargetTaskId);
+    btn.disabled = false;
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Task deleted.', 'success');
+    closeModal('deleteTaskModal');
+    await loadTasks();
+}
+
+// ── AUTO-GENERATE TASKS ──────────────────────────────────────
+async function generateTasks() {
+    const month = parseInt(document.getElementById('genMonth').value);
+    const year  = parseInt(document.getElementById('genYear').value);
+    const btn   = document.getElementById('genBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
+
+    const resultsEl = document.getElementById('genResults');
+    resultsEl.style.display = 'block';
+    resultsEl.innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Working…</div>';
+
+    try {
+        // Load active clients with their services
+        const { data: clientServices, error: csErr } = await _supabase
+            .from('client_services')
+            .select('client_id, service_id, clients(name, is_active), services(id, name, description, frequency, deadline_day, deadline_month)')
+            .eq('clients.is_active', true);
+        if (csErr) throw new Error(csErr.message);
+
+        const active = (clientServices || []).filter(cs => cs.clients?.is_active);
+
+        // Load existing tasks for this period to avoid duplicates
+        const { data: existingTasks } = await _supabase
+            .from('tasks')
+            .select('client_id, service_id, period_label');
+
+        const existingSet = new Set((existingTasks || []).map(t => `${t.client_id}-${t.service_id}-${t.period_label}`));
+
+        const toInsert = [];
+        const skipped  = [];
+        const results  = [];
+
+        for (const cs of active) {
+            const svc = cs.services;
+            if (!svc) continue;
+
+            let dueDate, periodLabel, startDate;
+
+            if (svc.frequency === 'Monthly') {
+                // Due date: deadline_day of NEXT month (the filing month)
+                // e.g. GSTR-1 for May → due 11 Jun. Task created 1 Jun.
+                // We generate for the "filing month" = selected month
+                // The period covered = previous month
+                const filingMonth = month; // month the task is due
+                const filingYear  = year;
+                const coveredMonth = filingMonth === 1 ? 12 : filingMonth - 1;
+                const coveredYear  = filingMonth === 1 ? filingYear - 1 : filingYear;
+
+                dueDate = new Date(filingYear, filingMonth - 1, svc.deadline_day);
+                periodLabel = `${MONTHS[coveredMonth]} ${coveredYear}`;
+                startDate   = new Date(filingYear, filingMonth - 1, 1); // 1st of filing month
+
+            } else if (svc.frequency === 'Quarterly') {
+                // Quarter that ENDS in the selected month (or close to it)
+                // Q1: Apr-Jun (due Jul), Q2: Jul-Sep (due Oct), Q3: Oct-Dec (due Jan), Q4: Jan-Mar (due Apr)
+                const quarterMap = {
+                    4: { label:'Q1 (Jan-Mar)', due: new Date(year, 3, svc.deadline_day) },
+                    7: { label:'Q2 (Apr-Jun)', due: new Date(year, 6, svc.deadline_day) },
+                    10:{ label:'Q3 (Jul-Sep)', due: new Date(year, 9, svc.deadline_day) },
+                    1: { label:'Q4 (Oct-Dec)', due: new Date(year, 0, svc.deadline_day) },
+                };
+                const q = quarterMap[month];
+                if (!q) { skipped.push(`${cs.clients.name} — ${svc.name} ${svc.description||''} (not a quarter filing month)`); continue; }
+                dueDate     = q.due;
+                periodLabel = `${q.label} FY ${year}-${String(year+1).slice(2)}`;
+                startDate   = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
+
+            } else if (svc.frequency === 'Annually') {
+                const dm = svc.deadline_month;
+                if (dm !== month) { skipped.push(`${cs.clients.name} — ${svc.name} ${svc.description||''} (annual, not due this month)`); continue; }
+                dueDate     = new Date(year, dm - 1, svc.deadline_day);
+                periodLabel = `FY ${year}-${String(year+1).slice(2)}`;
+                startDate   = new Date(year, dm - 1, 1);
+
+            } else {
+                // One-Time / Event Based — skip auto-generation
+                continue;
+            }
+
+            const key = `${cs.client_id}-${cs.service_id}-${periodLabel}`;
+            if (existingSet.has(key)) {
+                skipped.push(`${cs.clients.name} — ${svc.name} ${svc.description ? '('+svc.description+')' : ''} [already exists]`);
+                continue;
+            }
+
+            toInsert.push({
+                client_id:    cs.client_id,
+                service_id:   cs.service_id,
+                period_label: periodLabel,
+                due_date:     dueDate.toISOString().split('T')[0],
+                start_date:   startDate.toISOString().split('T')[0],
+                task_label:   `${svc.name}${svc.description ? ' — ' + svc.description : ''}`,
+                status:       'pending',
+                created_at:   new Date().toISOString(),
+                updated_at:   new Date().toISOString(),
+            });
+            results.push(`✅ ${cs.clients.name} — ${svc.name} ${svc.description ? '('+svc.description+')' : ''} | Due: ${dueDate.toLocaleDateString('en-IN')}`);
+        }
+
+        if (toInsert.length) {
+            const { error: insErr } = await _supabase.from('tasks').insert(toInsert);
+            if (insErr) throw new Error(insErr.message);
+        }
+
+        const html = `
+            <div style="font-weight:700;font-size:13px;margin-bottom:8px;color:#14532d">
+                <i class="fas fa-check-circle"></i> Created ${toInsert.length} task(s)
+            </div>
+            ${results.map(r => `<div class="gen-row"><i class="fas fa-check" style="color:#16a34a;flex-shrink:0"></i>${r}</div>`).join('')}
+            ${skipped.length ? `<div style="font-weight:700;font-size:13px;margin:10px 0 6px;color:#6b7280"><i class="fas fa-minus-circle"></i> Skipped ${skipped.length}</div>` +
+                skipped.map(r => `<div class="gen-row" style="color:#9ca3af"><i class="fas fa-minus" style="flex-shrink:0"></i>${r}</div>`).join('') : ''}
+        `;
+        resultsEl.innerHTML = html;
+        await loadTasks();
+    } catch(err) {
+        resultsEl.innerHTML = `<div style="color:#dc2626"><i class="fas fa-times-circle"></i> ${err.message}</div>`;
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic"></i> Generate';
+    }
+}
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
 </body>

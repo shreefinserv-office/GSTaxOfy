@@ -12,6 +12,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        .section-divider { font-size:13px;font-weight:700;color:#2563eb;border-bottom:1.5px solid #dbeafe;padding-bottom:6px;margin:20px 0 14px;display:flex;align-items:center;gap:8px;grid-column:1/-1 }
+    </style>
 </head>
 <body>
 <div class="app-container">
@@ -41,8 +44,12 @@
         <main class="content-area">
             <div class="page-title"><i class="fas fa-building"></i> Firm Details</div>
 
-            <div style="max-width:680px">
+            <div style="max-width:720px">
                 <div class="form-grid" id="firmForm">
+
+                    <!-- Basic Details -->
+                    <div class="section-divider"><i class="fas fa-info-circle"></i> Basic Information</div>
+
                     <div class="form-group">
                         <label>Firm Name *</label>
                         <input type="text" id="firmName" placeholder="e.g. CA Ganesh & Associates" disabled>
@@ -53,7 +60,7 @@
                     </div>
                     <div class="form-group" style="grid-column:1/-1">
                         <label>Firm Address *</label>
-                        <textarea id="firmAddress" rows="3" placeholder="Full address" disabled style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit"></textarea>
+                        <textarea id="firmAddress" rows="3" placeholder="Full address" disabled style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit;width:100%;box-sizing:border-box"></textarea>
                     </div>
                     <div class="form-group">
                         <label>Phone *</label>
@@ -62,6 +69,37 @@
                     <div class="form-group">
                         <label>Email ID *</label>
                         <input type="email" id="emailId" placeholder="firm@example.com" disabled>
+                    </div>
+
+                    <!-- Banking Details -->
+                    <div class="section-divider"><i class="fas fa-university"></i> Banking Details (Printed on Invoices)</div>
+
+                    <div class="form-group">
+                        <label>Account Holder Name</label>
+                        <input type="text" id="bankHolderName" placeholder="e.g. Ganesh Vitthal Chindarkar" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Bank Name</label>
+                        <input type="text" id="bankName" placeholder="e.g. State Bank of India" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Account Number</label>
+                        <input type="text" id="bankAccNo" placeholder="e.g. 33498675608" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Account Type</label>
+                        <select id="bankAccType" disabled style="padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;background:#fff">
+                            <option value="Saving">Saving</option>
+                            <option value="Current">Current</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>IFSC Code</label>
+                        <input type="text" id="bankIfsc" placeholder="e.g. SBIN0013842" disabled style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+                    </div>
+                    <div class="form-group">
+                        <label>UPI ID</label>
+                        <input type="text" id="bankUpi" placeholder="e.g. ganuman@upi" disabled>
                     </div>
                 </div>
 
@@ -105,6 +143,7 @@
 <script src="../../js/layout.js"></script>
 <script>
 let originalData = {};
+const ALL_FIELDS = ['firmName','firmAddress','registrationNo','phone','emailId','bankHolderName','bankName','bankAccNo','bankAccType','bankIfsc','bankUpi'];
 
 (async () => {
     const profile = await initLayout(['master']);
@@ -117,37 +156,39 @@ let originalData = {};
 async function loadFirm() {
     const { data, error } = await _supabase.from('firm_details').select('*').single();
     if (error || !data) { showToast('Could not load firm details.', 'error'); return; }
-    document.getElementById('firmName').value       = data.firm_name;
-    document.getElementById('firmAddress').value    = data.firm_address;
-    document.getElementById('registrationNo').value = data.registration_no;
-    document.getElementById('phone').value          = data.phone;
-    document.getElementById('emailId').value        = data.email_id;
+    populateForm(data);
     originalData = { ...data };
     document.getElementById('firmNameHeader').textContent = data.firm_name;
 }
 
+function populateForm(data) {
+    document.getElementById('firmName').value        = data.firm_name || '';
+    document.getElementById('firmAddress').value     = data.firm_address || '';
+    document.getElementById('registrationNo').value  = data.registration_no || '';
+    document.getElementById('phone').value           = data.phone || '';
+    document.getElementById('emailId').value         = data.email_id || '';
+    document.getElementById('bankHolderName').value  = data.bank_holder_name || '';
+    document.getElementById('bankName').value        = data.bank_name || '';
+    document.getElementById('bankAccNo').value       = data.bank_acc_no || '';
+    document.getElementById('bankAccType').value     = data.bank_acc_type || 'Saving';
+    document.getElementById('bankIfsc').value        = data.bank_ifsc || '';
+    document.getElementById('bankUpi').value         = data.bank_upi || '';
+}
+
 function enableEdit() {
-    ['firmName','firmAddress','registrationNo','phone','emailId'].forEach(id => {
-        document.getElementById(id).disabled = false;
-    });
+    ALL_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
     document.getElementById('editBtn').classList.add('hidden');
     document.getElementById('cancelBtn').classList.remove('hidden');
     document.getElementById('saveBtn').classList.remove('hidden');
 }
 
 function cancelEdit() {
-    document.getElementById('firmName').value       = originalData.firm_name;
-    document.getElementById('firmAddress').value    = originalData.firm_address;
-    document.getElementById('registrationNo').value = originalData.registration_no;
-    document.getElementById('phone').value          = originalData.phone;
-    document.getElementById('emailId').value        = originalData.email_id;
+    populateForm(originalData);
     disableEdit();
 }
 
 function disableEdit() {
-    ['firmName','firmAddress','registrationNo','phone','emailId'].forEach(id => {
-        document.getElementById(id).disabled = true;
-    });
+    ALL_FIELDS.forEach(id => { document.getElementById(id).disabled = true; });
     document.getElementById('editBtn').classList.remove('hidden');
     document.getElementById('cancelBtn').classList.add('hidden');
     document.getElementById('saveBtn').classList.add('hidden');
@@ -155,15 +196,21 @@ function disableEdit() {
 
 async function saveFirm() {
     const newData = {
-        firm_name:       document.getElementById('firmName').value.trim(),
-        firm_address:    document.getElementById('firmAddress').value.trim(),
-        registration_no: document.getElementById('registrationNo').value.trim(),
-        phone:           document.getElementById('phone').value.trim(),
-        email_id:        document.getElementById('emailId').value.trim(),
-        updated_at:      new Date().toISOString()
+        firm_name:        document.getElementById('firmName').value.trim(),
+        firm_address:     document.getElementById('firmAddress').value.trim(),
+        registration_no:  document.getElementById('registrationNo').value.trim(),
+        phone:            document.getElementById('phone').value.trim(),
+        email_id:         document.getElementById('emailId').value.trim(),
+        bank_holder_name: document.getElementById('bankHolderName').value.trim(),
+        bank_name:        document.getElementById('bankName').value.trim(),
+        bank_acc_no:      document.getElementById('bankAccNo').value.trim(),
+        bank_acc_type:    document.getElementById('bankAccType').value,
+        bank_ifsc:        document.getElementById('bankIfsc').value.trim(),
+        bank_upi:         document.getElementById('bankUpi').value.trim(),
+        updated_at:       new Date().toISOString()
     };
-    if (Object.values(newData).some(v => !v && v !== newData.updated_at)) {
-        showToast('All fields are required.', 'error'); return;
+    if (!newData.firm_name || !newData.firm_address || !newData.registration_no || !newData.phone || !newData.email_id) {
+        showToast('Basic fields (Name, Address, Reg No, Phone, Email) are required.', 'error'); return;
     }
     const btn = document.getElementById('saveBtn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
