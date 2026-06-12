@@ -2,7 +2,7 @@
 // To push an update: bump APP_VERSION below, commit to GitHub.
 // Users clicking "Check for Update" will get the new version automatically.
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '3.1.0';
 const CACHE_NAME  = 'gstaxofy-' + APP_VERSION;
 const CACHE_BASE  = 'gstaxofy';
 
