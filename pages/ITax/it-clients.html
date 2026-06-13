@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../../css/style.css">
     <link rel="manifest" href="../../manifest.json">
     <meta name="theme-color" content="#2563eb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
     <style>
@@ -114,7 +114,7 @@
                         <div class="it-banner-sub">File ITR, track refunds, respond to notices, and access all IT services for your clients.</div>
                     </div>
                 </div>
-                <button onclick="window.open('https://www.incometax.gov.in/iec/foportal/','_blank')"
+                <button onclick="window.open('https://eportal.incometax.gov.in/iec/foservices/#/login','_blank')"
                     style="background:#f59e0b;border:none;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0">
                     <i class="fas fa-sign-in-alt"></i> Login to IT Portal
                     <i class="fas fa-external-link-alt" style="font-size:11px"></i>
@@ -408,8 +408,8 @@ function buildAYSelectors() {
     }
     document.getElementById('filterAY').innerHTML = '<option value="">All AY</option>' + opts.join('');
     document.getElementById('em_ay').innerHTML    = opts.join('');
-    // Keep filter as "All AY" by default so clients without AY set are still visible
-    document.getElementById('filterAY').value = '';
+    // Default filter to current AY
+    document.getElementById('filterAY').value = currentAY();
 }
 
 // ── Load ──────────────────────────────────────────────────────
@@ -501,16 +501,21 @@ async function loadITClients() {
             effStatus = 'Overdue';
         }
         return {
-            ...c,
-            ...cred,
-            client_id: c.id,
-            // restore client fields overwritten by cred spread
-            name:         c.name,
-            pan_no:       cred.pan || c.pan_no,
-            contact_no:   c.contact_no,
-            email_id:     c.email_id,
+            // client fields first
+            client_id:     c.id,
+            name:          c.name,
+            pan_no:        cred.pan || c.pan_no,
+            contact_no:    c.contact_no,
+            email_id:      c.email_id,
             date_of_birth: cred.dob || c.date_of_birth,
             assessee_type: c.assessee_type,
+            // it_clients fields
+            _itId:         cred.id || null,  // it_clients row id — never overwrite with client id
+            ay:            cred.ay   || null,
+            itr_type:      cred.itr_type || null,
+            status:        cred.status   || null,
+            due_date:      cred.due_date || null,
+            it_password:   cred.it_password || null,
             _effectiveStatus: effStatus
         };
     });
@@ -617,13 +622,13 @@ function renderTable(clients) {
             <td>
                 <div style="display:flex;gap:5px;flex-wrap:wrap">
                     <!-- Edit -->
-                    <button class="action-btn" onclick='openEditModal(${JSON.stringify(c).replace(/'/g,"\\'")})'
+                    <button class="action-btn" onclick='openEditModal(${JSON.stringify({client_id:c.client_id,_itId:c._itId,name:c.name,pan_no:c.pan_no,date_of_birth:c.date_of_birth,assessee_type:c.assessee_type,ay:c.ay,itr_type:c.itr_type,status:c.status}).replace(/'/g,"\\'")})'
                         title="Edit IT Details"><i class="fas fa-edit"></i></button>
                     <!-- AIS/TIS Password -->
                     <button class="action-btn orange" onclick="copyAISPassword('${c.pan_no}','${c.date_of_birth||c.dob||''}')"
                         title="Copy AIS/TIS/Intimation Password"><i class="fas fa-key"></i></button>
                     <!-- Login to IT Portal -->
-                    <button class="action-btn green" onclick="loginITPortal('${c.pan_no}',${c.id})"
+                    <button class="action-btn green" onclick="loginITPortal('${c.pan_no}',${c.client_id})"
                         title="Login to IT Portal for this client"><i class="fas fa-sign-in-alt"></i></button>
                     <!-- Documents -->
                     <button class="action-btn purple" onclick="openDocsModal(${c.id},'${c.name.replace(/'/g,"\\'")}','${c.contact_no||''}')"
@@ -636,12 +641,14 @@ function renderTable(clients) {
 
 // ── Edit modal ────────────────────────────────────────────────
 function openEditModal(c) {
-    document.getElementById('em_id').value         = c.id || '';       // it_clients.id
-    document.getElementById('em_clientId').value   = c.client_id || c.id;
+    // c._itId is the it_clients table row id (set during merge in loadITClients)
+    // c.client_id is always the clients table id
+    document.getElementById('em_id').value         = c._itId || '';
+    document.getElementById('em_clientId').value   = c.client_id;
     document.getElementById('em_clientName').textContent = c.name;
     document.getElementById('em_pan').value        = c.pan_no || '';
-    document.getElementById('em_dob').value        = c.date_of_birth || c.dob || '';
-    document.getElementById('em_password').value   = ''; // never pre-fill
+    document.getElementById('em_dob').value        = c.date_of_birth || '';
+    document.getElementById('em_password').value   = '';
     document.getElementById('em_ay').value         = c.ay || currentAY();
     document.getElementById('em_itr_type').value   = c.itr_type || '';
     document.getElementById('em_status').value     = c.status || 'Pending';
@@ -749,51 +756,70 @@ function closeAisPopup() {
 
 // ── Auto-Login ────────────────────────────────────────────────
 async function loginITPortal(pan, clientId) {
-    // Find stored encrypted password
     const { data: cred } = await _supabase
         .from('it_clients')
         .select('it_password, pan')
         .eq('client_id', clientId)
-        .single();
+        .maybeSingle();
 
+    const usePan = (cred?.pan || pan || '').toUpperCase();
     let pwd = '';
     if (cred?.it_password) {
         pwd = await decryptText(cred.it_password) || '';
     }
 
-    const usePan = cred?.pan || pan;
+    // Open portal in new tab
+    window.open('https://eportal.incometax.gov.in/iec/foservices/#/login', '_blank');
 
-    // Open IT portal, pass credentials via sessionStorage for auto-fill
-    sessionStorage.setItem('it_autofill', JSON.stringify({ pan: usePan, pwd }));
-    const tab = window.open('https://www.incometax.gov.in/iec/foportal/', '_blank');
-
-    // Inject auto-fill script into new tab after load
-    // Note: Works because IT portal has no CAPTCHA, only a checkbox
-    if (tab) {
-        const interval = setInterval(() => {
-            try {
-                if (!tab.closed && tab.document?.readyState === 'complete') {
-                    clearInterval(interval);
-                    tab.eval(`
-                        (function(){
-                            const pan = '${usePan}';
-                            const pwd = '${pwd.replace(/'/g,"\\'")}';
-                            const fill = () => {
-                                const panEl = document.querySelector('input[formcontrolname="userId"], #userId, input[placeholder*="PAN"], input[name="userId"]');
-                                const pwdEl = document.querySelector('input[type="password"], input[formcontrolname="password"]');
-                                if (panEl) { panEl.value = pan; panEl.dispatchEvent(new Event('input',{bubbles:true})); }
-                                if (pwdEl) { pwdEl.value = pwd; pwdEl.dispatchEvent(new Event('input',{bubbles:true})); }
-                            };
-                            setTimeout(fill, 2000);
-                        })();
-                    `);
-                }
-            } catch(e) { clearInterval(interval); }
-        }, 500);
-        setTimeout(() => clearInterval(interval), 15000); // stop after 15s
+    if (!pwd) {
+        showToast('No password saved. Opening portal — fill manually.', 'info');
+    } else {
+        showAutoLoginHelper(usePan, pwd);
     }
+}
 
-    if (!pwd) showToast('No password stored. Login page opened — fill manually.', 'info');
+function showAutoLoginHelper(pan, pwd) {
+    const existing = document.getElementById('autoLoginHelper');
+    if (existing) existing.remove();
+    const el = document.createElement('div');
+    el.id = 'autoLoginHelper';
+    el.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;background:#1e3a5f;color:#fff;border-radius:12px;padding:16px 20px;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.3);font-size:13px;line-height:1.6';
+    const safePwd = pwd.replace(/\/g,'\\').replace(/`/g,'\`').replace(/\$/g,'\$');
+    const safePan = pan.replace(/`/g,'\`');
+    el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <strong style="font-size:14px"><i class="fas fa-sign-in-alt" style="margin-right:6px;color:#f59e0b"></i>IT Portal — Login Helper</strong>
+            <button onclick="document.getElementById('autoLoginHelper').remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:20px;line-height:1;padding:0 4px">&times;</button>
+        </div>
+        <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:#93c5fd;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">User ID (PAN)</div>
+            <div style="display:flex;align-items:center;gap:6px">
+                <code style="background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;flex:1;letter-spacing:1px;font-size:14px">${safePan}</code>
+                <button id="copyPanBtn" onclick="navigator.clipboard.writeText('${safePan}').then(()=>{this.innerHTML='<i class=\'fas fa-check\'></i>';setTimeout(()=>this.innerHTML='<i class=\'fas fa-copy\'></i>',1500)})"
+                    style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:6px 12px;cursor:pointer">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+        <div style="margin-bottom:14px">
+            <div style="font-size:11px;color:#93c5fd;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Password</div>
+            <div style="display:flex;align-items:center;gap:6px">
+                <code id="ahlPwdDisp" style="background:rgba(255,255,255,.15);padding:6px 10px;border-radius:6px;flex:1;letter-spacing:2px">••••••••</code>
+                <button onclick="const c=document.getElementById('ahlPwdDisp');const s=c.dataset.s==='1';c.textContent=s?'••••••••':'${safePwd}';c.dataset.s=s?'':'1';this.querySelector('i').className=s?'fas fa-eye':'fas fa-eye-slash'"
+                    style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:6px 12px;cursor:pointer">
+                    <i class="fas fa-eye"></i>
+                </button>
+                <button id="copyPwdBtn" onclick="navigator.clipboard.writeText('${safePwd}').then(()=>{this.innerHTML='<i class=\'fas fa-check\'></i>';setTimeout(()=>this.innerHTML='<i class=\'fas fa-copy\'></i>',1500)})"
+                    style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:6px;padding:6px 12px;cursor:pointer">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+        <div style="font-size:11px;color:#93c5fd;text-align:center;border-top:1px solid rgba(255,255,255,.1);padding-top:10px">
+            <i class="fas fa-info-circle" style="margin-right:4px"></i>Copy &amp; paste into the portal tab. Auto-closes in 2 min.
+        </div>`;
+    document.body.appendChild(el);
+    setTimeout(() => el?.remove(), 120000);
 }
 
 // ── Documents modal ───────────────────────────────────────────
