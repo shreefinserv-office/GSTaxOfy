@@ -86,7 +86,7 @@
                 <div class="backup-card">
                     <div class="card-icon" style="background:linear-gradient(45deg,#2563eb,#3b82f6)"><i class="fas fa-building"></i></div>
                     <h3>Firm Details</h3>
-                    <p>Backup firm name, address, registration info</p>
+                    <p>Backup firm name, address, registration &amp; bank info</p>
                     <div class="btn-group">
                         <button class="btn btn-primary btn-sm" onclick="backupTable('firm_details','Firm Details')">
                             <i class="fas fa-download"></i> Backup
@@ -108,7 +108,7 @@
                 <div class="backup-card">
                     <div class="card-icon" style="background:linear-gradient(45deg,#059669,#10b981)"><i class="fas fa-user-tie"></i></div>
                     <h3>Clients</h3>
-                    <p>Backup all client records with PAN, GST info</p>
+                    <p>Backup all client records with PAN, GST, assessee type</p>
                     <div class="btn-group">
                         <button class="btn btn-primary btn-sm" onclick="backupTable('clients','Clients')">
                             <i class="fas fa-download"></i> Backup
@@ -119,9 +119,53 @@
                 <div class="backup-card">
                     <div class="card-icon" style="background:linear-gradient(45deg,#d97706,#f59e0b)"><i class="fas fa-list-check"></i></div>
                     <h3>Services</h3>
-                    <p>Backup all services with frequency and deadlines</p>
+                    <p>Backup all main services and sub-services with deadlines</p>
                     <div class="btn-group">
                         <button class="btn btn-primary btn-sm" onclick="backupTable('services','Services')">
+                            <i class="fas fa-download"></i> Backup
+                        </button>
+                    </div>
+                </div>
+                <!-- Tasks -->
+                <div class="backup-card">
+                    <div class="card-icon" style="background:linear-gradient(45deg,#0891b2,#22d3ee)"><i class="fas fa-tasks"></i></div>
+                    <h3>Tasks</h3>
+                    <p>Backup all tasks with status, due dates and periods</p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" onclick="backupTable('tasks','Tasks')">
+                            <i class="fas fa-download"></i> Backup
+                        </button>
+                    </div>
+                </div>
+                <!-- Invoices -->
+                <div class="backup-card">
+                    <div class="card-icon" style="background:linear-gradient(45deg,#be185d,#f472b6)"><i class="fas fa-file-invoice"></i></div>
+                    <h3>Invoices</h3>
+                    <p>Backup all invoices with line items and payment status</p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" onclick="backupTable('invoices','Invoices')">
+                            <i class="fas fa-download"></i> Backup
+                        </button>
+                    </div>
+                </div>
+                <!-- Receipts -->
+                <div class="backup-card">
+                    <div class="card-icon" style="background:linear-gradient(45deg,#065f46,#34d399)"><i class="fas fa-receipt"></i></div>
+                    <h3>Receipts</h3>
+                    <p>Backup all payment receipts with mode and references</p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" onclick="backupTable('receipts','Receipts')">
+                            <i class="fas fa-download"></i> Backup
+                        </button>
+                    </div>
+                </div>
+                <!-- IT Clients -->
+                <div class="backup-card">
+                    <div class="card-icon" style="background:linear-gradient(45deg,#1e3a5f,#3b82f6)"><i class="fas fa-file-alt"></i></div>
+                    <h3>IT Clients</h3>
+                    <p>Backup IT filing details, AY, ITR type and document checklists</p>
+                    <div class="btn-group">
+                        <button class="btn btn-primary btn-sm" onclick="backupMultiple([{key:'it_clients',label:'IT Clients'},{key:'it_documents',label:'IT Documents'}],'IT Clients')">
                             <i class="fas fa-download"></i> Backup
                         </button>
                     </div>
@@ -310,17 +354,50 @@ async function backupTable(table, label) {
     }
 }
 
+// ── Multi-table individual backup (e.g. IT Clients + IT Documents together) ──
+async function backupMultiple(tableList, groupLabel) {
+    try {
+        showToast(`Backing up ${groupLabel}…`, 'info', 1500);
+        const results = await Promise.all(tableList.map(async t => {
+            const { data, error } = await _supabase.from(t.key).select('*');
+            return { table: t.key, label: t.label, data: error ? [] : data, error: error?.message || null };
+        }));
+        const ts       = getTimestamp();
+        const filename = `GStaxOfy_${groupLabel.replace(/ /g,'_')}_Backup_${ts}.json`;
+        const totalRec = results.reduce((s, r) => s + (r.data?.length || 0), 0);
+        const payload  = {
+            backup_type: groupLabel,
+            app: 'GStaxOfy',
+            timestamp: new Date().toISOString(),
+            tables: results
+        };
+        downloadJSON(payload, filename);
+        await logAudit(`BACKUP_${groupLabel.toUpperCase().replace(/ /g,'_')}`, null, null, null, { count: totalRec });
+        showToast(`${groupLabel} backup downloaded! (${totalRec} records)`, 'success');
+        addLog('download', '#2563eb', `${groupLabel} backup — ${totalRec} records → ${filename}`);
+    } catch(err) {
+        showToast('Backup failed: ' + err.message, 'error');
+        addLog('times-circle', '#dc2626', `${groupLabel} backup failed: ${err.message}`);
+    }
+}
+
 // ── Combined Backup ───────────────────────────────────────────────────────────
 async function backupAll() {
     try {
         showToast('Preparing full backup…', 'info', 2000);
         const tables = [
-            { key: 'firm_details',  label: 'Firm Details' },
-            { key: 'user_profiles', label: 'Users' },
-            { key: 'clients',       label: 'Clients' },
-            { key: 'services',      label: 'Services' },
-            { key: 'client_services', label: 'Client Services' },
+            { key: 'firm_details',     label: 'Firm Details' },
+            { key: 'user_profiles',    label: 'Users' },
+            { key: 'clients',          label: 'Clients' },
+            { key: 'client_services',  label: 'Client Services' },
+            { key: 'services',         label: 'Services' },
             { key: 'portal_shortcuts', label: 'Portal Shortcuts' },
+            { key: 'tasks',            label: 'Tasks' },
+            { key: 'invoices',         label: 'Invoices' },
+            { key: 'invoice_tasks',    label: 'Invoice Tasks' },
+            { key: 'receipts',         label: 'Receipts' },
+            { key: 'it_clients',       label: 'IT Clients' },
+            { key: 'it_documents',     label: 'IT Documents' },
         ];
 
         const results = await Promise.all(tables.map(async t => {
