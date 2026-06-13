@@ -52,6 +52,7 @@ const ROUTES = {
     workLog:        () => BASE + '/pages/Reports/work-log.html',
     receivables:    () => BASE + '/pages/Reports/receivables.html',
     profitability:  () => BASE + '/pages/Reports/profitability.html',
+    itClients:      () => BASE + '/pages/ITax/it-clients.html',
 };
 
 function goTo(route) { window.location.href = route; }

@@ -83,6 +83,31 @@
                     <div class="value" id="metricReceivables">₹ —</div>
                     <p onclick="window.location.href=ROUTES.receivables()">Track</p>
                 </div>
+                <div class="metric-card" style="cursor:pointer" onclick="window.location.href=ROUTES.itClients()">
+                    <h3 style="display:flex;align-items:center;gap:6px">
+                        <span style="font-size:10px;background:#1e3a5f;color:#fff;padding:2px 6px;border-radius:4px;font-weight:700">IT</span>
+                        Income Tax
+                    </h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px">
+                        <div style="text-align:center">
+                            <div style="font-size:22px;font-weight:800;color:#059669" id="metricITFiled">—</div>
+                            <div style="font-size:10px;color:#6b7280;font-weight:600">Filed</div>
+                        </div>
+                        <div style="text-align:center">
+                            <div style="font-size:22px;font-weight:800;color:#d97706" id="metricITPending">—</div>
+                            <div style="font-size:10px;color:#6b7280;font-weight:600">Pending</div>
+                        </div>
+                        <div style="text-align:center">
+                            <div style="font-size:22px;font-weight:800;color:#2563eb" id="metricITReview">—</div>
+                            <div style="font-size:10px;color:#6b7280;font-weight:600">Review</div>
+                        </div>
+                        <div style="text-align:center">
+                            <div style="font-size:22px;font-weight:800;color:#dc2626" id="metricITOverdue">—</div>
+                            <div style="font-size:10px;color:#6b7280;font-weight:600">Overdue</div>
+                        </div>
+                    </div>
+                    <p style="margin-top:8px">Manage IT Clients →</p>
+                </div>
             </div>
 
             <!-- PORTAL SHORTCUTS -->
@@ -180,8 +205,39 @@ const iconMap = {
     const { count: clientCount } = await _supabase
         .from('clients').select('*', { count:'exact', head:true }).eq('is_active', true);
     document.getElementById('metricClients').textContent = clientCount ?? 0;
-    document.getElementById('metricPending').textContent = '—';
-    document.getElementById('metricOverdue').textContent = '—';
+
+    // Pending & overdue tasks
+    const today = new Date().toISOString().split('T')[0];
+    const { data: tasks } = await _supabase.from('tasks').select('status, due_date').neq('status', 'completed');
+    const pendingTasks  = (tasks||[]).filter(t => !t.due_date || t.due_date >= today).length;
+    const overdueTasks  = (tasks||[]).filter(t => t.due_date && t.due_date < today).length;
+    document.getElementById('metricPending').textContent = pendingTasks;
+    document.getElementById('metricOverdue').textContent = overdueTasks;
+
+    // Receivables
+    const [{ data: invs }, { data: rcps }] = await Promise.all([
+        _supabase.from('invoices').select('total_amount').eq('status','unpaid'),
+        _supabase.from('receipts').select('amount')
+    ]);
+    const totalReceivables = (invs||[]).reduce((s,i)=>s+parseFloat(i.total_amount||0),0);
+    document.getElementById('metricReceivables').textContent = '₹ ' + totalReceivables.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0});
+
+    // IT stats: load from it_clients for current AY
+    const curAY = (() => { const n=new Date(),y=n.getFullYear(); return n.getMonth()>=3?`${y}-${String(y+1).slice(2)}`:`${y-1}-${String(y).slice(2)}`; })();
+    const { data: itData } = await _supabase.from('it_clients').select('status, due_date').eq('ay', curAY);
+    const itToday = new Date(); itToday.setHours(0,0,0,0);
+    let itFiled=0, itPending=0, itReview=0, itOverdue=0;
+    (itData||[]).forEach(it => {
+        const effSt = it.status !== 'Filed' && it.due_date && new Date(it.due_date) < itToday ? 'Overdue' : it.status;
+        if (effSt === 'Filed') itFiled++;
+        else if (effSt === 'Under Review') itReview++;
+        else if (effSt === 'Overdue') itOverdue++;
+        else itPending++;
+    });
+    document.getElementById('metricITFiled').textContent   = itFiled;
+    document.getElementById('metricITPending').textContent = itPending;
+    document.getElementById('metricITReview').textContent  = itReview;
+    document.getElementById('metricITOverdue').textContent = itOverdue;
 
     await loadPortals();
 

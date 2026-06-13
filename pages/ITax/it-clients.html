@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GStaxOfy — IT Client Management</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="manifest" href="../../manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="GStaxOfy">
+    <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        /* ── IT Portal banner ── */
+        .it-banner {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+            border-radius: 12px;
+            padding: 16px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            gap: 12px;
+        }
+        .it-banner-left { display:flex;align-items:center;gap:14px }
+        .it-banner-icon { width:44px;height:44px;background:rgba(255,255,255,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0 }
+        .it-banner-title { font-size:15px;font-weight:700;color:#fff;margin:0 }
+        .it-banner-sub   { font-size:12px;color:rgba(255,255,255,.7);margin-top:2px }
+
+        /* ── Stat cards ── */
+        .it-stats { display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px }
+        .it-stat  { background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .15s }
+        .it-stat:hover { border-color:#2563eb;transform:translateY(-1px) }
+        .it-stat.active { border-color:#2563eb;background:#eff6ff }
+        .it-stat-num  { font-size:26px;font-weight:800 }
+        .it-stat-lbl  { font-size:11px;color:#6b7280;font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.4px }
+
+        /* ── Status badges ── */
+        .s-filed     { background:#dcfce7;color:#14532d }
+        .s-pending   { background:#fef9c3;color:#854d0e }
+        .s-review    { background:#dbeafe;color:#1e40af }
+        .s-pfc       { background:#f3e8ff;color:#6b21a8 }
+        .s-overdue   { background:#fee2e2;color:#991b1b }
+        .status-pill { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600 }
+
+        /* ── Table tweaks ── */
+        .it-table th { font-size:11px;text-transform:uppercase;letter-spacing:.4px }
+        .it-table td { font-size:13px;vertical-align:middle }
+        .action-btn  { width:32px;height:32px;border-radius:7px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:13px;transition:all .15s;color:#374151 }
+        .action-btn:hover { border-color:#2563eb;color:#2563eb;background:#eff6ff }
+        .action-btn.green:hover { border-color:#059669;color:#059669;background:#f0fdf4 }
+        .action-btn.orange:hover{ border-color:#d97706;color:#d97706;background:#fffbeb }
+        .action-btn.red:hover   { border-color:#dc2626;color:#dc2626;background:#fef2f2 }
+        .action-btn.purple:hover{ border-color:#7c3aed;color:#7c3aed;background:#f5f3ff }
+
+        /* ── AIS popup ── */
+        .ais-popup-overlay {
+            position:fixed;inset:0;z-index:9999;
+            background:rgba(0,0,0,.6);
+            backdrop-filter:blur(6px);
+            display:flex;align-items:center;justify-content:center;
+        }
+        .ais-popup-box {
+            background:#fff;border-radius:16px;padding:32px 36px;text-align:center;
+            max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);
+        }
+        .ais-check-circle {
+            width:64px;height:64px;background:linear-gradient(135deg,#059669,#10b981);
+            border-radius:50%;display:flex;align-items:center;justify-content:center;
+            margin:0 auto 16px;
+        }
+
+        /* ── Doc modal ── */
+        .doc-item { display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;margin-bottom:8px;transition:all .15s }
+        .doc-item.received { border-color:#bbf7d0;background:#f0fdf4 }
+        .doc-item input[type=checkbox] { accent-color:#059669;width:16px;height:16px;flex-shrink:0 }
+        .doc-label { flex:1;font-size:13px;color:#1f2937 }
+        .doc-item.received .doc-label { color:#166534;text-decoration:line-through;text-decoration-color:#86efac }
+
+        /* ── Password field ── */
+        .pwd-field-wrap { position:relative }
+        .pwd-field-wrap input { padding-right:38px!important }
+        .pwd-eye { position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:14px;background:none;border:none;padding:0 }
+        .pwd-eye:hover { color:#2563eb }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo"><img src="../../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="ca-logo-text" style="display:none">CA</span></div>
+            <div class="company-info"><h1 id="firmNameHeader">GStaxOfy</h1><p>GSTaxOfy</p></div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+            </div>
+        </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+
+            <!-- IT Portal Banner -->
+            <div class="it-banner">
+                <div class="it-banner-left">
+                    <div class="it-banner-icon"><i class="fas fa-landmark"></i></div>
+                    <div>
+                        <div class="it-banner-title">Income Tax e-Filing Portal</div>
+                        <div class="it-banner-sub">File ITR, track refunds, respond to notices, and access all IT services for your clients.</div>
+                    </div>
+                </div>
+                <button onclick="window.open('https://www.incometax.gov.in/iec/foportal/','_blank')"
+                    style="background:#f59e0b;border:none;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0">
+                    <i class="fas fa-sign-in-alt"></i> Login to IT Portal
+                    <i class="fas fa-external-link-alt" style="font-size:11px"></i>
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div class="it-stats" id="itStats">
+                <div class="it-stat" onclick="setStatusFilter('')">
+                    <div class="it-stat-num" id="st_total" style="color:#2563eb">—</div>
+                    <div class="it-stat-lbl">Total Clients</div>
+                </div>
+                <div class="it-stat" onclick="setStatusFilter('Filed')">
+                    <div class="it-stat-num" id="st_filed" style="color:#059669">—</div>
+                    <div class="it-stat-lbl">ITR Filed</div>
+                </div>
+                <div class="it-stat" onclick="setStatusFilter('Pending')">
+                    <div class="it-stat-num" id="st_pending" style="color:#d97706">—</div>
+                    <div class="it-stat-lbl">Pending</div>
+                </div>
+                <div class="it-stat" onclick="setStatusFilter('Under Review')">
+                    <div class="it-stat-num" id="st_review" style="color:#2563eb">—</div>
+                    <div class="it-stat-lbl">Under Review</div>
+                </div>
+                <div class="it-stat" onclick="setStatusFilter('Pending from Client')">
+                    <div class="it-stat-num" id="st_pfc" style="color:#7c3aed">—</div>
+                    <div class="it-stat-lbl">Pending from Client</div>
+                </div>
+                <div class="it-stat" onclick="setStatusFilter('Overdue')">
+                    <div class="it-stat-num" id="st_overdue" style="color:#dc2626">—</div>
+                    <div class="it-stat-lbl">Overdue</div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search name or PAN…" oninput="applyFilters()">
+                </div>
+                <select id="filterStatus" onchange="applyFilters()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff">
+                    <option value="">All Status</option>
+                    <option>Filed</option>
+                    <option>Pending</option>
+                    <option>Under Review</option>
+                    <option>Pending from Client</option>
+                    <option>Overdue</option>
+                </select>
+                <select id="filterITRType" onchange="applyFilters()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff">
+                    <option value="">All ITR Types</option>
+                    <option>ITR-1 (Sahaj)</option>
+                    <option>ITR-2</option>
+                    <option>ITR-3</option>
+                    <option>ITR-4 (Sugam)</option>
+                    <option>ITR-5</option>
+                    <option>ITR-6</option>
+                    <option>ITR-7</option>
+                </select>
+                <select id="filterAY" onchange="applyFilters()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff" id="filterAY"></select>
+                <button class="btn btn-secondary btn-sm" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+
+            <!-- Table -->
+            <div class="table-wrapper">
+                <table class="it-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Client</th>
+                            <th>PAN / Type</th>
+                            <th>Mobile</th>
+                            <th>AY</th>
+                            <th>ITR Type</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itBody">
+                        <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- ── EDIT CLIENT MODAL ── -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit IT Details — <span id="em_clientName" style="color:#6b7280;font-weight:400"></span></span>
+            <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+        </div>
+        <input type="hidden" id="em_id">
+        <input type="hidden" id="em_clientId">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>User ID (PAN) *</label>
+                <input type="text" id="em_pan" placeholder="ABCDE1234F" maxlength="10"
+                    style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group">
+                <label>Date of Birth *</label>
+                <input type="date" id="em_dob">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>IT Portal Password (AES-256 encrypted)</label>
+                <div class="pwd-field-wrap">
+                    <input type="password" id="em_password" placeholder="Leave blank to keep existing">
+                    <button class="pwd-eye" type="button" onclick="togglePwd('em_password',this)"><i class="fas fa-eye"></i></button>
+                </div>
+                <span style="font-size:11px;color:#9ca3af;margin-top:4px;display:block"><i class="fas fa-lock" style="margin-right:3px"></i>Stored with AES-256-GCM encryption. Never visible in plain text after saving.</span>
+            </div>
+            <div class="form-group">
+                <label>Assessment Year</label>
+                <select id="em_ay"></select>
+            </div>
+            <div class="form-group">
+                <label>ITR Type</label>
+                <select id="em_itr_type">
+                    <option value="">— Not Set —</option>
+                    <option>ITR-1 (Sahaj)</option>
+                    <option>ITR-2</option>
+                    <option>ITR-3</option>
+                    <option>ITR-4 (Sugam)</option>
+                    <option>ITR-5</option>
+                    <option>ITR-6</option>
+                    <option>ITR-7</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Filing Status</label>
+                <select id="em_status">
+                    <option value="">— Not Set —</option>
+                    <option>Pending</option>
+                    <option>Pending from Client</option>
+                    <option>Under Review</option>
+                    <option>Filed</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('editModal')">Cancel</button>
+            <button class="btn btn-primary" id="editSaveBtn" onclick="saveITClient()"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── AIS/TIS POPUP ── -->
+<div id="aisPopup" style="display:none" class="ais-popup-overlay" onclick="closeAisPopup()">
+    <div class="ais-popup-box" onclick="event.stopPropagation()">
+        <div class="ais-check-circle">
+            <i class="fas fa-check" style="color:#fff;font-size:26px"></i>
+        </div>
+        <h3 style="color:#1f2937;margin:0 0 8px;font-size:18px">Password Copied!</h3>
+        <p style="color:#6b7280;font-size:13px;margin-bottom:20px">
+            AIS / TIS / Intimation Password<br>has been copied to clipboard.
+        </p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="closeAisPopup()">OK</button>
+    </div>
+</div>
+
+<!-- ── DOCUMENTS MODAL ── -->
+<div class="modal-overlay" id="docsModal">
+    <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-folder-open" style="color:#2563eb;margin-right:8px"></i>Documents — <span id="dm_clientName" style="color:#6b7280;font-weight:400"></span></span>
+            <button class="modal-close" onclick="closeModal('docsModal')">&times;</button>
+        </div>
+        <input type="hidden" id="dm_itClientId">
+        <input type="hidden" id="dm_clientMobile">
+        <input type="hidden" id="dm_clientName_raw">
+
+        <!-- Add doc -->
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+            <input type="text" id="dm_newDoc" placeholder="Document name e.g. Form 16, Bank Statement…"
+                style="flex:1;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px"
+                onkeydown="if(event.key==='Enter')addDoc()">
+            <button class="btn btn-primary btn-sm" onclick="addDoc()"><i class="fas fa-plus"></i> Add</button>
+        </div>
+
+        <!-- Doc list -->
+        <div id="docList" style="max-height:300px;overflow-y:auto;margin-bottom:16px">
+            <div style="text-align:center;padding:20px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i></div>
+        </div>
+
+        <!-- WhatsApp -->
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#166534">
+            <i class="fas fa-info-circle" style="margin-right:5px"></i>
+            WhatsApp button will send only <strong>unchecked (pending)</strong> documents to the client.
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('docsModal')">Close</button>
+            <button class="btn btn-success" onclick="sendWhatsApp()" style="background:#25d366;border-color:#25d366">
+                <i class="fab fa-whatsapp"></i> Send WhatsApp
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- LOGOUT -->
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/sidebar.js"></script>
+<script src="../../js/layout.js"></script>
+<script>
+// ── AES-256-GCM encryption (same passphrase as Wave app) ──────
+const ENC_PASSPHRASE = 'Ganu&Anu#1999! Love';
+
+async function deriveKey(passphrase, salt) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 200000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+
+async function encryptText(plaintext) {
+    const enc  = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const key  = await deriveKey(ENC_PASSPHRASE, salt);
+    const ct   = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+    const buf  = new Uint8Array(salt.length + iv.length + ct.byteLength);
+    buf.set(salt, 0); buf.set(iv, 16); buf.set(new Uint8Array(ct), 28);
+    return btoa(String.fromCharCode(...buf));
+}
+
+async function decryptText(b64) {
+    try {
+        const buf  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const salt = buf.slice(0, 16);
+        const iv   = buf.slice(16, 28);
+        const ct   = buf.slice(28);
+        const key  = await deriveKey(ENC_PASSPHRASE, salt);
+        const dec  = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+        return new TextDecoder().decode(dec);
+    } catch { return null; }
+}
+
+// ── State ─────────────────────────────────────────────────────
+let allITClients = []; // joined data
+let firmData     = {};
+let activeStatusFilter = '';
+
+// ── Boot ──────────────────────────────────────────────────────
+(async () => {
+    const profile = await initLayout();
+    if (!profile) return;
+    renderSidebar('it-clients');
+    setActiveNav();
+
+    const { data: firm } = await _supabase.from('firm_details').select('*').single();
+    if (firm) { firmData = firm; document.getElementById('firmNameHeader').textContent = firm.firm_name; }
+
+    // Build AY selector
+    buildAYSelectors();
+    await loadITClients();
+})();
+
+// ── AY helpers ────────────────────────────────────────────────
+function currentAY() {
+    const now = new Date();
+    const y   = now.getFullYear();
+    return now.getMonth() >= 3 ? `${y}-${String(y+1).slice(2)}` : `${y-1}-${String(y).slice(2)}`;
+}
+
+function buildAYSelectors() {
+    const cur = currentAY();
+    const curYear = parseInt(cur.split('-')[0]);
+    const opts = [];
+    for (let y = curYear + 1; y >= curYear - 4; y--) {
+        const ay = `${y}-${String(y+1).slice(2)}`;
+        opts.push(`<option value="${ay}" ${ay===cur?'selected':''}>${ay}</option>`);
+    }
+    document.getElementById('filterAY').innerHTML = '<option value="">All AY</option>' + opts.join('');
+    document.getElementById('em_ay').innerHTML    = opts.join('');
+}
+
+// ── Load ──────────────────────────────────────────────────────
+async function loadITClients() {
+    // Get IT sub-services (children of "Income Tax Return" parent)
+    const { data: svcData } = await _supabase
+        .from('services')
+        .select('id, name, description, deadline_day, deadline_month, parent_id, services!inner(name)')
+        .eq('is_parent', false)
+        .not('parent_id', 'is', null);
+
+    // Filter only Income Tax related subs
+    const itSubIds = (svcData||[])
+        .filter(s => s.services?.name?.toLowerCase().includes('income tax'))
+        .map(s => s.id);
+
+    if (!itSubIds.length) {
+        // Fallback: load all clients with any income-tax-named service
+    }
+
+    // Get clients who have at least one IT sub-service assigned
+    const { data: cs } = await _supabase
+        .from('client_services')
+        .select('client_id')
+        .in('service_id', itSubIds.length ? itSubIds : [0]);
+
+    const clientIds = [...new Set((cs||[]).map(r => r.client_id))];
+
+    if (!clientIds.length) {
+        renderTable([]);
+        renderStats([]);
+        return;
+    }
+
+    // Load those clients
+    const { data: clients } = await _supabase
+        .from('clients')
+        .select('id, name, pan_no, contact_no, email_id, date_of_birth, assessee_type, is_active')
+        .in('id', clientIds)
+        .eq('is_active', true)
+        .order('name');
+
+    // Load IT credentials
+    const { data: creds } = await _supabase
+        .from('it_clients')
+        .select('*')
+        .in('client_id', clientIds);
+
+    const credsMap = {};
+    (creds||[]).forEach(c => { credsMap[c.client_id] = c; });
+
+    // Merge and auto-compute overdue
+    const today = new Date(); today.setHours(0,0,0,0);
+    allITClients = (clients||[]).map(c => {
+        const cred = credsMap[c.id] || {};
+        let effStatus = cred.status || 'Pending';
+
+        // Auto overdue: if status is not Filed and due date has passed
+        if (effStatus !== 'Filed' && cred.due_date) {
+            if (new Date(cred.due_date) < today) effStatus = 'Overdue';
+        }
+
+        return { ...c, ...cred, client_id: c.id, _effectiveStatus: effStatus };
+    });
+
+    renderStats(allITClients);
+    applyFilters();
+}
+
+// ── Stats ─────────────────────────────────────────────────────
+function renderStats(clients) {
+    const c = { filed:0, pending:0, review:0, pfc:0, overdue:0 };
+    clients.forEach(cl => {
+        const s = cl._effectiveStatus;
+        if (s === 'Filed')                c.filed++;
+        else if (s === 'Pending')         c.pending++;
+        else if (s === 'Under Review')    c.review++;
+        else if (s === 'Pending from Client') c.pfc++;
+        else if (s === 'Overdue')         c.overdue++;
+    });
+    document.getElementById('st_total').textContent   = clients.length;
+    document.getElementById('st_filed').textContent   = c.filed;
+    document.getElementById('st_pending').textContent = c.pending;
+    document.getElementById('st_review').textContent  = c.review;
+    document.getElementById('st_pfc').textContent     = c.pfc;
+    document.getElementById('st_overdue').textContent = c.overdue;
+}
+
+// ── Filter ────────────────────────────────────────────────────
+function setStatusFilter(val) {
+    activeStatusFilter = val;
+    document.getElementById('filterStatus').value = val;
+    applyFilters();
+}
+
+function clearFilters() {
+    activeStatusFilter = '';
+    document.getElementById('searchInput').value   = '';
+    document.getElementById('filterStatus').value  = '';
+    document.getElementById('filterITRType').value = '';
+    document.getElementById('filterAY').value      = currentAY();
+    applyFilters();
+}
+
+function applyFilters() {
+    const q   = document.getElementById('searchInput').value.toLowerCase();
+    const st  = document.getElementById('filterStatus').value || activeStatusFilter;
+    const itr = document.getElementById('filterITRType').value;
+    const ay  = document.getElementById('filterAY').value;
+
+    const filtered = allITClients.filter(c => {
+        if (st  && c._effectiveStatus !== st) return false;
+        if (itr && c.itr_type !== itr) return false;
+        if (ay  && c.ay !== ay) return false;
+        if (q && !c.name.toLowerCase().includes(q) && !c.pan_no.toLowerCase().includes(q)) return false;
+        return true;
+    });
+
+    renderTable(filtered);
+}
+
+// ── Table ─────────────────────────────────────────────────────
+const STATUS_CLASS = {
+    'Filed':'s-filed','Pending':'s-pending','Under Review':'s-review',
+    'Pending from Client':'s-pfc','Overdue':'s-overdue'
+};
+const STATUS_ICON = {
+    'Filed':'fa-check-circle','Pending':'fa-clock','Under Review':'fa-search',
+    'Pending from Client':'fa-user-clock','Overdue':'fa-exclamation-circle'
+};
+
+function renderTable(clients) {
+    const body = document.getElementById('itBody');
+    if (!clients.length) {
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">No clients found for selected filters.</td></tr>';
+        return;
+    }
+    body.innerHTML = clients.map((c, i) => {
+        const st    = c._effectiveStatus;
+        const stCls = STATUS_CLASS[st] || 's-pending';
+        const stIco = STATUS_ICON[st]  || 'fa-clock';
+        const ay    = c.ay || currentAY();
+        const itr   = c.itr_type || '—';
+        const type  = c.assessee_type || '—';
+
+        return `<tr style="${st==='Overdue'?'background:#fff8f8':''}">
+            <td style="color:#9ca3af">${i+1}</td>
+            <td>
+                <strong>${c.name}</strong>
+                <div style="font-size:11px;color:#9ca3af">${c.email_id||''}</div>
+            </td>
+            <td>
+                <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px">${c.pan_no}</code>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">${type}</div>
+            </td>
+            <td style="font-size:12px">${c.contact_no||'—'}</td>
+            <td><span style="font-weight:700;color:#2563eb;font-size:13px">${ay}</span></td>
+            <td style="font-size:12px">${itr}</td>
+            <td>
+                <span class="status-pill ${stCls}">
+                    <i class="fas ${stIco}" style="font-size:10px"></i> ${st}
+                </span>
+            </td>
+            <td>
+                <div style="display:flex;gap:5px;flex-wrap:wrap">
+                    <!-- Edit -->
+                    <button class="action-btn" onclick='openEditModal(${JSON.stringify(c).replace(/'/g,"\\'")})'
+                        title="Edit IT Details"><i class="fas fa-edit"></i></button>
+                    <!-- AIS/TIS Password -->
+                    <button class="action-btn orange" onclick="copyAISPassword('${c.pan_no}','${c.date_of_birth||c.dob||''}')"
+                        title="Copy AIS/TIS/Intimation Password"><i class="fas fa-key"></i></button>
+                    <!-- Login to IT Portal -->
+                    <button class="action-btn green" onclick="loginITPortal('${c.pan_no}',${c.id})"
+                        title="Login to IT Portal for this client"><i class="fas fa-sign-in-alt"></i></button>
+                    <!-- Documents -->
+                    <button class="action-btn purple" onclick="openDocsModal(${c.id},'${c.name.replace(/'/g,"\\'")}','${c.contact_no||''}')"
+                        title="Documents Checklist"><i class="fas fa-folder-open"></i></button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ── Edit modal ────────────────────────────────────────────────
+function openEditModal(c) {
+    document.getElementById('em_id').value         = c.id || '';       // it_clients.id
+    document.getElementById('em_clientId').value   = c.client_id || c.id;
+    document.getElementById('em_clientName').textContent = c.name;
+    document.getElementById('em_pan').value        = c.pan_no || '';
+    document.getElementById('em_dob').value        = c.date_of_birth || c.dob || '';
+    document.getElementById('em_password').value   = ''; // never pre-fill
+    document.getElementById('em_ay').value         = c.ay || currentAY();
+    document.getElementById('em_itr_type').value   = c.itr_type || '';
+    document.getElementById('em_status').value     = c.status || '';
+    openModal('editModal');
+}
+
+async function saveITClient() {
+    const itId     = document.getElementById('em_id').value;
+    const clientId = parseInt(document.getElementById('em_clientId').value);
+    const pan      = document.getElementById('em_pan').value.trim().toUpperCase();
+    const dob      = document.getElementById('em_dob').value;
+    const pwdRaw   = document.getElementById('em_password').value;
+    const ay       = document.getElementById('em_ay').value;
+    const itrType  = document.getElementById('em_itr_type').value;
+    const status   = document.getElementById('em_status').value;
+
+    if (!pan) { showToast('PAN is required.', 'error'); return; }
+    if (!dob) { showToast('Date of birth is required.', 'error'); return; }
+
+    const btn = document.getElementById('editSaveBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        // Encrypt password only if new one entered
+        let encPwd = null;
+        if (pwdRaw) encPwd = await encryptText(pwdRaw);
+
+        // Also update client DOB/PAN in main clients table
+        await _supabase.from('clients').update({ pan_no: pan, date_of_birth: dob }).eq('id', clientId);
+
+        const payload = {
+            client_id: clientId,
+            pan: pan,
+            dob: dob,
+            ay,
+            itr_type: itrType,
+            status,
+            updated_at: new Date().toISOString()
+        };
+        if (encPwd) payload.it_password = encPwd;
+
+        if (itId) {
+            const { error } = await _supabase.from('it_clients').update(payload).eq('id', parseInt(itId));
+            if (error) throw new Error(error.message);
+        } else {
+            const { error } = await _supabase.from('it_clients').insert({ ...payload, created_at: new Date().toISOString() });
+            if (error) throw new Error(error.message);
+        }
+
+        showToast('IT details saved!', 'success');
+        closeModal('editModal');
+        await loadITClients();
+    } catch(err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save';
+    }
+}
+
+// ── AIS/TIS Password ──────────────────────────────────────────
+function copyAISPassword(pan, dob) {
+    if (!pan || !dob) { showToast('PAN or DOB not set for this client.', 'error'); return; }
+    // Format: pan.toLowerCase() + DDMMYYYY
+    const d   = new Date(dob);
+    const dd  = String(d.getDate()).padStart(2, '0');
+    const mm  = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const pwd = pan.toLowerCase() + dd + mm + yyyy;
+    navigator.clipboard.writeText(pwd).then(() => {
+        document.getElementById('aisPopup').style.display = 'flex';
+    }).catch(() => {
+        // Fallback for older browsers
+        const el = document.createElement('textarea');
+        el.value = pwd; el.style.position = 'fixed'; el.style.opacity = '0';
+        document.body.appendChild(el); el.select(); document.execCommand('copy');
+        document.body.removeChild(el);
+        document.getElementById('aisPopup').style.display = 'flex';
+    });
+}
+
+function closeAisPopup() {
+    document.getElementById('aisPopup').style.display = 'none';
+}
+
+// ── Auto-Login ────────────────────────────────────────────────
+async function loginITPortal(pan, clientId) {
+    // Find stored encrypted password
+    const { data: cred } = await _supabase
+        .from('it_clients')
+        .select('it_password, pan')
+        .eq('client_id', clientId)
+        .single();
+
+    let pwd = '';
+    if (cred?.it_password) {
+        pwd = await decryptText(cred.it_password) || '';
+    }
+
+    const usePan = cred?.pan || pan;
+
+    // Open IT portal, pass credentials via sessionStorage for auto-fill
+    sessionStorage.setItem('it_autofill', JSON.stringify({ pan: usePan, pwd }));
+    const tab = window.open('https://www.incometax.gov.in/iec/foportal/', '_blank');
+
+    // Inject auto-fill script into new tab after load
+    // Note: Works because IT portal has no CAPTCHA, only a checkbox
+    if (tab) {
+        const interval = setInterval(() => {
+            try {
+                if (!tab.closed && tab.document?.readyState === 'complete') {
+                    clearInterval(interval);
+                    tab.eval(`
+                        (function(){
+                            const pan = '${usePan}';
+                            const pwd = '${pwd.replace(/'/g,"\\'")}';
+                            const fill = () => {
+                                const panEl = document.querySelector('input[formcontrolname="userId"], #userId, input[placeholder*="PAN"], input[name="userId"]');
+                                const pwdEl = document.querySelector('input[type="password"], input[formcontrolname="password"]');
+                                if (panEl) { panEl.value = pan; panEl.dispatchEvent(new Event('input',{bubbles:true})); }
+                                if (pwdEl) { pwdEl.value = pwd; pwdEl.dispatchEvent(new Event('input',{bubbles:true})); }
+                            };
+                            setTimeout(fill, 2000);
+                        })();
+                    `);
+                }
+            } catch(e) { clearInterval(interval); }
+        }, 500);
+        setTimeout(() => clearInterval(interval), 15000); // stop after 15s
+    }
+
+    if (!pwd) showToast('No password stored. Login page opened — fill manually.', 'info');
+}
+
+// ── Documents modal ───────────────────────────────────────────
+let docsCache = [];  // current modal docs
+
+async function openDocsModal(clientId, clientName, mobile) {
+    document.getElementById('dm_clientName').textContent = clientName;
+    document.getElementById('dm_clientName_raw').value   = clientName;
+    document.getElementById('dm_itClientId').value       = clientId;
+    document.getElementById('dm_clientMobile').value     = mobile;
+    document.getElementById('dm_newDoc').value           = '';
+    openModal('docsModal');
+    await loadDocs(clientId);
+}
+
+async function loadDocs(clientId) {
+    const list = document.getElementById('docList');
+    list.innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i></div>';
+
+    const { data, error } = await _supabase
+        .from('it_documents')
+        .select('*')
+        .eq('client_id', parseInt(clientId))
+        .order('created_at', { ascending: true });
+
+    docsCache = data || [];
+    renderDocList();
+}
+
+function renderDocList() {
+    const list = document.getElementById('docList');
+    if (!docsCache.length) {
+        list.innerHTML = '<p style="text-align:center;color:#9ca3af;font-size:13px;padding:20px">No documents added yet. Add one above.</p>';
+        return;
+    }
+    list.innerHTML = docsCache.map(doc => `
+        <div class="doc-item ${doc.is_received ? 'received' : ''}" id="docrow_${doc.id}">
+            <input type="checkbox" ${doc.is_received ? 'checked' : ''}
+                onchange="toggleDocReceived(${doc.id}, this.checked)">
+            <span class="doc-label">${doc.document_name}</span>
+            ${doc.is_received
+                ? '<span style="font-size:11px;color:#16a34a;font-weight:600;white-space:nowrap"><i class="fas fa-check"></i> Received</span>'
+                : '<span style="font-size:11px;color:#d97706;font-weight:600;white-space:nowrap"><i class="fas fa-clock"></i> Pending</span>'}
+            <button onclick="deleteDoc(${doc.id})"
+                style="background:none;border:none;cursor:pointer;color:#9ca3af;padding:2px 4px;font-size:13px" title="Remove">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>`).join('');
+}
+
+async function addDoc() {
+    const name     = document.getElementById('dm_newDoc').value.trim();
+    const clientId = parseInt(document.getElementById('dm_itClientId').value);
+    if (!name) { showToast('Enter document name.', 'error'); return; }
+
+    const { data, error } = await _supabase.from('it_documents').insert({
+        client_id: clientId,
+        document_name: name,
+        is_received: false,
+        created_at: new Date().toISOString()
+    }).select('*').single();
+
+    if (error) { showToast(error.message, 'error'); return; }
+    document.getElementById('dm_newDoc').value = '';
+    docsCache.push(data);
+    renderDocList();
+}
+
+async function toggleDocReceived(docId, received) {
+    const { error } = await _supabase.from('it_documents')
+        .update({ is_received: received })
+        .eq('id', docId);
+    if (error) { showToast(error.message, 'error'); return; }
+    const doc = docsCache.find(d => d.id === docId);
+    if (doc) doc.is_received = received;
+    renderDocList();
+}
+
+async function deleteDoc(docId) {
+    const { error } = await _supabase.from('it_documents').delete().eq('id', docId);
+    if (error) { showToast(error.message, 'error'); return; }
+    docsCache = docsCache.filter(d => d.id !== docId);
+    renderDocList();
+}
+
+function sendWhatsApp() {
+    const mobile     = document.getElementById('dm_clientMobile').value.replace(/\D/g, '');
+    const clientName = document.getElementById('dm_clientName_raw').value;
+    const pending    = docsCache.filter(d => !d.is_received);
+
+    if (!mobile) { showToast('No mobile number for this client.', 'error'); return; }
+    if (!pending.length) { showToast('All documents are already received!', 'info'); return; }
+
+    const docList = pending.map((d, i) => `${i+1}. ${d.document_name}`).join('\n');
+    const firmName = firmData.firm_name || 'Our Office';
+    const message  = `Dear ${clientName},\n\nKindly share the following documents required for ITR filing at the earliest:\n\n${docList}\n\nThank you,\n${firmName}`;
+
+    const waUrl = `https://wa.me/91${mobile}?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+}
+
+// ── Utility ───────────────────────────────────────────────────
+function togglePwd(inputId, btn) {
+    const el = document.getElementById(inputId);
+    const isHidden = el.type === 'password';
+    el.type = isHidden ? 'text' : 'password';
+    btn.querySelector('i').className = isHidden ? 'fas fa-eye-slash' : 'fas fa-eye';
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{})}</script>
+</body>
+</html>

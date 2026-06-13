@@ -65,6 +65,11 @@ function renderSidebar(activePage) {
                 <a class="sub-menu-item" href="${r.profitability()}"><i class="fas fa-chart-line"></i>Profitability</a>
             </div>
         </li>
+        <li class="nav-item">
+            <a class="nav-link${activePage==='it-clients'?' active':''}" href="${r.itClients()}">
+                <i class="fas fa-file-alt" style="color:#f59e0b"></i><span>IT Clients</span>
+            </a>
+        </li>
         <li class="nav-item" data-role="master">
             <a class="nav-link${activePage==='audit'?' active':''}" href="${r.auditLog()}">
                 <i class="fas fa-history"></i><span>Audit Log</span>
