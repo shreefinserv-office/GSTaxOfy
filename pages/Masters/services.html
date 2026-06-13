@@ -1,17 +1,74 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GStaxOfy — Services</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../css/style.css">
     <link rel="manifest" href="../../manifest.json">
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        .parent-card {
+            background: #fff;
+            border: 1.5px solid #e5e7eb;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .parent-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            background: #f8fafc;
+            border-bottom: 1.5px solid #e5e7eb;
+            cursor: pointer;
+            user-select: none;
+        }
+        .parent-header:hover { background: #eff6ff; }
+        .parent-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1f2937;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .parent-title .icon-circle {
+            width: 32px; height: 32px;
+            background: #dbeafe;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: #2563eb; font-size: 14px; flex-shrink: 0;
+        }
+        .sub-table { width: 100%; border-collapse: collapse; }
+        .sub-table th {
+            background: #f9fafb;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            color: #9ca3af;
+            padding: 8px 18px;
+            text-align: left;
+            font-weight: 600;
+        }
+        .sub-table td {
+            padding: 10px 18px;
+            border-top: 1px solid #f3f4f6;
+            font-size: 13px;
+            color: #374151;
+        }
+        .sub-table tr:hover td { background: #fafafa; }
+        .add-sub-row {
+            padding: 10px 18px;
+            border-top: 1px solid #f3f4f6;
+        }
+        .collapse-arrow { transition: transform .2s; color: #9ca3af; }
+        .collapse-arrow.open { transform: rotate(180deg); }
+    </style>
 </head>
 <body>
 <div class="app-container">
@@ -35,39 +92,56 @@
         <main class="content-area">
             <div class="section-header">
                 <div class="page-title" style="margin:0"><i class="fas fa-list-check"></i> Services</div>
-                <button class="btn btn-primary" onclick="openModal('serviceModal')"><i class="fas fa-plus"></i> Add Service</button>
+                <button class="btn btn-primary" onclick="openAddParent()"><i class="fas fa-plus"></i> Add Main Service</button>
             </div>
-
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr><th>#</th><th>Service Name</th><th>Description</th><th>Frequency</th><th>Deadline</th><th>Status</th><th>Actions</th></tr>
-                    </thead>
-                    <tbody id="serviceBody">
-                        <tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
-                    </tbody>
-                </table>
+            <div id="servicesContainer">
+                <div style="text-align:center;padding:40px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
             </div>
         </main>
     </div>
 </div>
 
-<!-- ADD / EDIT SERVICE MODAL -->
-<div class="modal-overlay" id="serviceModal">
+<!-- ADD / EDIT MAIN SERVICE MODAL -->
+<div class="modal-overlay" id="parentModal">
+    <div class="modal-box" style="max-width:440px">
+        <div class="modal-header">
+            <span class="modal-title" id="parentModalTitle"><i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Main Service</span>
+            <button class="modal-close" onclick="closeModal('parentModal')">&times;</button>
+        </div>
+        <input type="hidden" id="p_id">
+        <div class="form-group" style="margin-bottom:16px">
+            <label>Main Service Name *</label>
+            <input type="text" id="p_name" placeholder="e.g. Income Tax Return">
+        </div>
+        <div class="form-group" style="margin-bottom:4px">
+            <label>Description</label>
+            <input type="text" id="p_desc" placeholder="Optional description">
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('parentModal')">Cancel</button>
+            <button class="btn btn-primary" id="parentSubmitBtn" onclick="saveParent()"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD / EDIT SUB-SERVICE MODAL -->
+<div class="modal-overlay" id="subModal">
     <div class="modal-box" style="max-width:540px">
         <div class="modal-header">
-            <span class="modal-title" id="serviceModalTitle"><i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Service</span>
-            <button class="modal-close" onclick="closeServiceModal()">&times;</button>
+            <span class="modal-title" id="subModalTitle"><i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Sub-Service</span>
+            <button class="modal-close" onclick="closeModal('subModal')">&times;</button>
         </div>
         <input type="hidden" id="s_id">
+        <input type="hidden" id="s_parent_id">
+        <p id="s_parent_name_label" style="font-size:12px;color:#6b7280;margin-bottom:14px"></p>
         <div class="form-grid">
             <div class="form-group" style="grid-column:1/-1">
-                <label>Service Name *</label>
-                <input type="text" id="s_name" placeholder="e.g. GST Return Filing">
+                <label>Sub-Service Name *</label>
+                <input type="text" id="s_name" placeholder="e.g. Non Audit — ITR-1, ITR-2">
             </div>
             <div class="form-group" style="grid-column:1/-1">
                 <label>Description</label>
-                <input type="text" id="s_desc" placeholder="Short description">
+                <input type="text" id="s_desc" placeholder="e.g. Individual — Other Than Business &amp; Profession">
             </div>
             <div class="form-group">
                 <label>Filing Frequency *</label>
@@ -81,10 +155,10 @@
             </div>
             <div class="form-group" id="deadlineDayGroup">
                 <label>Due Day of Month</label>
-                <input type="number" id="s_deadline_day" placeholder="e.g. 20" min="1" max="31">
+                <input type="number" id="s_deadline_day" placeholder="e.g. 31" min="1" max="31">
             </div>
             <div class="form-group" id="deadlineMonthGroup" style="display:none">
-                <label>Due Month (for Annual)</label>
+                <label>Due Month</label>
                 <select id="s_deadline_month">
                     <option value="">— Select Month —</option>
                     <option value="1">January</option><option value="2">February</option>
@@ -97,8 +171,8 @@
             </div>
         </div>
         <div class="form-actions">
-            <button class="btn btn-secondary" onclick="closeServiceModal()">Cancel</button>
-            <button class="btn btn-primary" id="serviceSubmitBtn" onclick="saveService()"><i class="fas fa-save"></i> Save</button>
+            <button class="btn btn-secondary" onclick="closeModal('subModal')">Cancel</button>
+            <button class="btn btn-primary" id="subSubmitBtn" onclick="saveSub()"><i class="fas fa-save"></i> Save</button>
         </div>
     </div>
 </div>
@@ -107,10 +181,10 @@
 <div class="modal-overlay" id="deleteModal">
     <div class="modal-box" style="max-width:360px">
         <div class="modal-header"><span class="modal-title" style="color:#dc2626"><i class="fas fa-exclamation-triangle" style="margin-right:8px"></i>Delete Service</span><button class="modal-close" onclick="closeModal('deleteModal')">&times;</button></div>
-        <p style="color:#6b7280;margin-bottom:20px">Delete <strong id="deleteServiceName"></strong>? Clients linked to this service will lose it.</p>
+        <p style="color:#6b7280;margin-bottom:20px">Deactivate <strong id="deleteServiceName"></strong>?</p>
         <div style="display:flex;gap:10px;justify-content:flex-end">
             <button class="btn btn-secondary" onclick="closeModal('deleteModal')">Cancel</button>
-            <button class="btn btn-danger" id="confirmDeleteBtn" onclick="deleteService()"><i class="fas fa-trash"></i> Delete</button>
+            <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()"><i class="fas fa-trash"></i> Deactivate</button>
         </div>
     </div>
 </div>
@@ -132,8 +206,19 @@
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
-let deleteTargetId = null;
-let isEditMode = false;
+const ICONS = {
+    'Income Tax Return': 'fa-file-alt',
+    'GST Return Filing': 'fa-receipt',
+    'Accounting': 'fa-book',
+    'Profession Tax': 'fa-id-badge',
+    'GST Registration': 'fa-registered',
+    'Profession Tax Registration': 'fa-stamp',
+};
+
+let deleteTarget = null; // { id, name }
+let subEditMode  = false;
+let parentEditMode = false;
+let collapsedMap = {}; // parent_id -> bool
 
 (async () => {
     const profile = await initLayout(['master']);
@@ -146,131 +231,245 @@ let isEditMode = false;
 })();
 
 async function loadServices() {
-    const { data, error } = await _supabase.from('services').select('*').order('created_at', { ascending: false });
+    const { data, error } = await _supabase
+        .from('services')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: true });
     if (error) { showToast('Failed to load services.', 'error'); return; }
-    const body = document.getElementById('serviceBody');
-    if (!data || !data.length) {
-        body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#9ca3af">No services yet. Click "Add Service" to get started.</td></tr>';
+
+    const parents = (data || []).filter(s => s.is_parent);
+    const subs    = (data || []).filter(s => !s.is_parent);
+
+    renderServices(parents, subs);
+}
+
+function renderServices(parents, subs) {
+    const container = document.getElementById('servicesContainer');
+    if (!parents.length) {
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af">No services yet. Click "Add Main Service" to get started.</div>';
         return;
     }
-    body.innerHTML = data.map((s, i) => {
-        const deadline = formatDeadline(s.frequency, s.deadline_day, s.deadline_month);
-        return `<tr>
-            <td>${i+1}</td>
-            <td><strong>${s.name}</strong></td>
-            <td style="color:#6b7280;font-size:13px">${s.description || '—'}</td>
-            <td><span class="badge ${freqBadge(s.frequency)}">${s.frequency || '—'}</span></td>
-            <td style="font-size:13px">${deadline}</td>
-            <td><span class="badge ${s.is_active ? 'badge-green' : 'badge-red'}">${s.is_active ? 'Active' : 'Inactive'}</span></td>
-            <td>
-                <button class="btn btn-secondary btn-sm" onclick='openEdit(${JSON.stringify(s)})'><i class="fas fa-edit"></i></button>
-                <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDelete(${s.id},'${s.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
-            </td>
-        </tr>`;
+
+    container.innerHTML = parents.map(p => {
+        const children = subs.filter(s => s.parent_id === p.id);
+        const icon     = ICONS[p.name] || 'fa-folder';
+        const isOpen   = collapsedMap[p.id] !== false; // default open
+
+        return `
+        <div class="parent-card">
+            <div class="parent-header" onclick="toggleCollapse(${p.id})">
+                <div class="parent-title">
+                    <div class="icon-circle"><i class="fas ${icon}"></i></div>
+                    ${p.name}
+                    <span class="badge badge-blue" style="font-size:11px">${children.length} sub-service${children.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openEditParent(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();openDelete(${p.id},'${p.name.replace(/'/g,"\\'")}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <i class="fas fa-chevron-down collapse-arrow ${isOpen ? 'open' : ''}" id="arrow_${p.id}"></i>
+                </div>
+            </div>
+
+            <div id="collapse_${p.id}" style="display:${isOpen ? 'block' : 'none'}">
+                ${children.length ? `
+                <table class="sub-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Sub-Service Name</th>
+                            <th>Description</th>
+                            <th>Frequency</th>
+                            <th>Deadline</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${children.map((s, i) => `
+                        <tr>
+                            <td style="color:#9ca3af">${i+1}</td>
+                            <td><strong>${s.name}</strong></td>
+                            <td style="color:#6b7280">${s.description || '—'}</td>
+                            <td><span class="badge ${freqBadge(s.frequency)}">${s.frequency || '—'}</span></td>
+                            <td style="font-size:12px">${formatDeadline(s.frequency, s.deadline_day, s.deadline_month)}</td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm" onclick='openEditSub(${JSON.stringify(s).replace(/'/g,"\\'")})'><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDelete(${s.id},'${s.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>` : ''}
+                <div class="add-sub-row">
+                    <button class="btn btn-secondary btn-sm" onclick="openAddSub(${p.id}, '${p.name.replace(/'/g,"\\'")}')">
+                        <i class="fas fa-plus" style="color:#2563eb"></i> Add Sub-Service
+                    </button>
+                </div>
+            </div>
+        </div>`;
     }).join('');
 }
 
+function toggleCollapse(parentId) {
+    const el    = document.getElementById(`collapse_${parentId}`);
+    const arrow = document.getElementById(`arrow_${parentId}`);
+    const isOpen = el.style.display !== 'none';
+    el.style.display = isOpen ? 'none' : 'block';
+    arrow.classList.toggle('open', !isOpen);
+    collapsedMap[parentId] = !isOpen;
+}
+
+// ── PARENT modal ─────────────────────────────────────────────
+function openAddParent() {
+    parentEditMode = false;
+    document.getElementById('parentModalTitle').innerHTML = '<i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Main Service';
+    document.getElementById('p_id').value   = '';
+    document.getElementById('p_name').value = '';
+    document.getElementById('p_desc').value = '';
+    openModal('parentModal');
+}
+
+function openEditParent(p) {
+    parentEditMode = true;
+    document.getElementById('parentModalTitle').innerHTML = '<i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Main Service';
+    document.getElementById('p_id').value   = p.id;
+    document.getElementById('p_name').value = p.name;
+    document.getElementById('p_desc').value = p.description || '';
+    openModal('parentModal');
+}
+
+async function saveParent() {
+    const name = document.getElementById('p_name').value.trim();
+    const desc = document.getElementById('p_desc').value.trim();
+    if (!name) { showToast('Service name is required.', 'error'); return; }
+
+    const btn = document.getElementById('parentSubmitBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    const payload = { name, description: desc, is_parent: true, is_active: true };
+    let error;
+    if (parentEditMode) {
+        const id = document.getElementById('p_id').value;
+        ({ error } = await _supabase.from('services').update({ name, description: desc }).eq('id', id));
+    } else {
+        ({ error } = await _supabase.from('services').insert({ ...payload, created_at: new Date().toISOString() }));
+    }
+
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save';
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast(`Main service ${parentEditMode ? 'updated' : 'created'}!`, 'success');
+    closeModal('parentModal');
+    await loadServices();
+}
+
+// ── SUB-SERVICE modal ────────────────────────────────────────
+function openAddSub(parentId, parentName) {
+    subEditMode = false;
+    document.getElementById('subModalTitle').innerHTML  = '<i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Sub-Service';
+    document.getElementById('s_parent_name_label').textContent = `Under: ${parentName}`;
+    document.getElementById('s_id').value          = '';
+    document.getElementById('s_parent_id').value   = parentId;
+    document.getElementById('s_name').value        = '';
+    document.getElementById('s_desc').value        = '';
+    document.getElementById('s_freq').value        = '';
+    document.getElementById('s_deadline_day').value   = '';
+    document.getElementById('s_deadline_month').value = '';
+    toggleDeadlineFields();
+    openModal('subModal');
+}
+
+function openEditSub(s) {
+    subEditMode = true;
+    document.getElementById('subModalTitle').innerHTML  = '<i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Sub-Service';
+    document.getElementById('s_parent_name_label').textContent = '';
+    document.getElementById('s_id').value             = s.id;
+    document.getElementById('s_parent_id').value      = s.parent_id;
+    document.getElementById('s_name').value           = s.name;
+    document.getElementById('s_desc').value           = s.description || '';
+    document.getElementById('s_freq').value           = s.frequency   || '';
+    document.getElementById('s_deadline_day').value   = s.deadline_day   || '';
+    document.getElementById('s_deadline_month').value = s.deadline_month || '';
+    toggleDeadlineFields();
+    openModal('subModal');
+}
+
+async function saveSub() {
+    const name      = document.getElementById('s_name').value.trim();
+    const desc      = document.getElementById('s_desc').value.trim();
+    const freq      = document.getElementById('s_freq').value;
+    const day       = parseInt(document.getElementById('s_deadline_day').value)   || null;
+    const month     = parseInt(document.getElementById('s_deadline_month').value) || null;
+    const parent_id = parseInt(document.getElementById('s_parent_id').value);
+
+    if (!name) { showToast('Sub-service name is required.', 'error'); return; }
+    if (!freq) { showToast('Frequency is required.', 'error'); return; }
+
+    const btn = document.getElementById('subSubmitBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    const payload = { name, description: desc, frequency: freq, deadline_day: day, deadline_month: month, parent_id, is_parent: false, is_active: true };
+    let error;
+    if (subEditMode) {
+        const id = document.getElementById('s_id').value;
+        ({ error } = await _supabase.from('services').update({ name, description: desc, frequency: freq, deadline_day: day, deadline_month: month }).eq('id', id));
+    } else {
+        ({ error } = await _supabase.from('services').insert({ ...payload, created_at: new Date().toISOString() }));
+    }
+
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save';
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast(`Sub-service ${subEditMode ? 'updated' : 'created'}!`, 'success');
+    closeModal('subModal');
+    await loadServices();
+}
+
+// ── DELETE ────────────────────────────────────────────────────
+function openDelete(id, name) {
+    deleteTarget = { id, name };
+    document.getElementById('deleteServiceName').textContent = name;
+    openModal('deleteModal');
+}
+
+async function confirmDelete() {
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    const { error } = await _supabase.from('services').update({ is_active: false }).eq('id', deleteTarget.id);
+    btn.disabled = false;
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Service deactivated.', 'success');
+    closeModal('deleteModal');
+    await loadServices();
+}
+
+// ── Helpers ───────────────────────────────────────────────────
 function freqBadge(f) {
-    return { 'Monthly':'badge-blue', 'Quarterly':'badge-orange', 'Annually':'badge-green', 'One-Time / Event Based':'badge-gray' }[f] || 'badge-gray';
+    return { 'Monthly':'badge-blue','Quarterly':'badge-orange','Annually':'badge-green','One-Time / Event Based':'badge-gray' }[f] || 'badge-gray';
 }
 
 function formatDeadline(freq, day, month) {
     if (!freq || freq === 'One-Time / Event Based') return 'As applicable';
-    if (freq === 'Annually' && day && month) {
-        const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        return `${day} ${months[month]}`;
-    }
+    const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (freq === 'Annually' && day && month) return `${day} ${months[month]}`;
     if (day) return `${day}th of due month`;
     return '—';
 }
 
 function toggleDeadlineFields() {
     const freq = document.getElementById('s_freq').value;
-    const dayGroup   = document.getElementById('deadlineDayGroup');
-    const monthGroup = document.getElementById('deadlineMonthGroup');
-    if (freq === 'One-Time / Event Based' || !freq) {
-        dayGroup.style.display = 'none'; monthGroup.style.display = 'none';
+    const dayGrp = document.getElementById('deadlineDayGroup');
+    const moGrp  = document.getElementById('deadlineMonthGroup');
+    if (!freq || freq === 'One-Time / Event Based') {
+        dayGrp.style.display = 'none'; moGrp.style.display = 'none';
     } else if (freq === 'Annually') {
-        dayGroup.style.display = 'block'; monthGroup.style.display = 'block';
+        dayGrp.style.display = 'block'; moGrp.style.display = 'block';
     } else {
-        dayGroup.style.display = 'block'; monthGroup.style.display = 'none';
+        dayGrp.style.display = 'block'; moGrp.style.display = 'none';
     }
-}
-
-function openEdit(s) {
-    isEditMode = true;
-    document.getElementById('serviceModalTitle').innerHTML = '<i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Service';
-    document.getElementById('s_id').value            = s.id;
-    document.getElementById('s_name').value          = s.name;
-    document.getElementById('s_desc').value          = s.description || '';
-    document.getElementById('s_freq').value          = s.frequency || '';
-    document.getElementById('s_deadline_day').value  = s.deadline_day || '';
-    document.getElementById('s_deadline_month').value= s.deadline_month || '';
-    toggleDeadlineFields();
-    openModal('serviceModal');
-}
-
-function closeServiceModal() {
-    isEditMode = false;
-    document.getElementById('s_id').value = '';
-    document.getElementById('s_name').value = '';
-    document.getElementById('s_desc').value = '';
-    document.getElementById('s_freq').value = '';
-    document.getElementById('s_deadline_day').value = '';
-    document.getElementById('s_deadline_month').value = '';
-    document.getElementById('serviceModalTitle').innerHTML = '<i class="fas fa-plus-circle" style="color:#2563eb;margin-right:8px"></i>Add Service';
-    toggleDeadlineFields();
-    closeModal('serviceModal');
-}
-
-async function saveService() {
-    const name  = document.getElementById('s_name').value.trim();
-    const desc  = document.getElementById('s_desc').value.trim();
-    const freq  = document.getElementById('s_freq').value;
-    const day   = parseInt(document.getElementById('s_deadline_day').value) || null;
-    const month = parseInt(document.getElementById('s_deadline_month').value) || null;
-    if (!name || !freq) { showToast('Service name and frequency are required.', 'error'); return; }
-
-    const btn = document.getElementById('serviceSubmitBtn');
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
-
-    const payload = { name, description: desc, frequency: freq, deadline_day: day, deadline_month: month };
-    let error;
-
-    if (isEditMode) {
-        const id = document.getElementById('s_id').value;
-        ({ error } = await _supabase.from('services').update(payload).eq('id', id));
-        if (!error) await logAudit('UPDATE_SERVICE', 'services', id, null, payload);
-    } else {
-        ({ error } = await _supabase.from('services').insert({ ...payload, is_active: true }));
-        if (!error) await logAudit('CREATE_SERVICE', 'services', null, null, payload);
-    }
-
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save';
-    if (error) { showToast(error.message, 'error'); return; }
-    showToast(`Service ${isEditMode ? 'updated' : 'created'} successfully!`, 'success');
-    closeServiceModal();
-    await loadServices();
-}
-
-function openDelete(id, name) {
-    deleteTargetId = id;
-    document.getElementById('deleteServiceName').textContent = name;
-    openModal('deleteModal');
-}
-
-async function deleteService() {
-    const btn = document.getElementById('confirmDeleteBtn');
-    btn.disabled = true;
-    const { error } = await _supabase.from('services').update({ is_active: false }).eq('id', deleteTargetId);
-    btn.disabled = false;
-    if (error) { showToast(error.message, 'error'); return; }
-    await logAudit('DELETE_SERVICE', 'services', deleteTargetId);
-    showToast('Service deactivated.', 'success');
-    closeModal('deleteModal');
-    await loadServices();
 }
 </script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{})}</script>
 </body>
 </html>
