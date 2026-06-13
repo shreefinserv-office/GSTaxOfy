@@ -1,39 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GStaxOfy — Clients</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../../css/style.css">
-    <style>
-        .import-zone {
-            border: 2px dashed #d1d5db; border-radius: 12px;
-            padding: 30px; text-align: center; cursor: pointer;
-            transition: all .2s; background: #fafafa;
-        }
-        .import-zone:hover, .import-zone.dragover {
-            border-color: #2563eb; background: #eff6ff;
-        }
-        .import-zone i { font-size: 32px; color: #9ca3af; margin-bottom: 10px; display: block; }
-        .import-zone.dragover i { color: #2563eb; }
-        .import-preview { max-height: 240px; overflow-y: auto; margin-top: 16px; }
-        .import-row-ok  { background: #f0fdf4; }
-        .import-row-err { background: #fef2f2; }
-        .checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 8px; }
-        .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-            background: #f9fafb; border-radius: 8px; font-size: 13px; cursor: pointer;
-            border: 1.5px solid transparent; transition: all .15s; }
-        .checkbox-item:hover { border-color: #2563eb; background: #eff6ff; }
-        .checkbox-item input[type=checkbox] { accent-color: #2563eb; width: 15px; height: 15px; }
-        .checkbox-item.checked { border-color: #2563eb; background: #eff6ff; }
-    </style>
     <link rel="manifest" href="../../manifest.json">
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        .import-zone { border:2px dashed #d1d5db;border-radius:12px;padding:30px;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa }
+        .import-zone:hover,.import-zone.dragover { border-color:#2563eb;background:#eff6ff }
+        .import-zone i { font-size:32px;color:#9ca3af;margin-bottom:10px;display:block }
+        .import-zone.dragover i { color:#2563eb }
+        .import-preview { max-height:240px;overflow-y:auto;margin-top:16px }
+        .import-row-ok  { background:#f0fdf4 }
+        .import-row-err { background:#fef2f2 }
+
+        /* ── 2-level service selector ── */
+        .svc-parent-block { border:1.5px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:10px }
+        .svc-parent-row {
+            display:flex;align-items:center;gap:10px;padding:10px 14px;
+            background:#f8fafc;cursor:pointer;user-select:none;
+        }
+        .svc-parent-row:hover { background:#eff6ff }
+        .svc-parent-row.active { background:#eff6ff;border-bottom:1.5px solid #dbeafe }
+        .svc-parent-label { font-size:13px;font-weight:700;color:#1f2937;flex:1 }
+        .svc-parent-row input[type=checkbox] { accent-color:#2563eb;width:16px;height:16px;flex-shrink:0 }
+        .svc-subs { padding:10px 14px;display:flex;flex-direction:column;gap:6px;background:#fff }
+        .svc-sub-item {
+            display:flex;align-items:flex-start;gap:8px;padding:8px 10px;
+            border-radius:8px;border:1.5px solid #e5e7eb;cursor:pointer;transition:all .15s;
+        }
+        .svc-sub-item:hover { border-color:#2563eb;background:#eff6ff }
+        .svc-sub-item.checked { border-color:#2563eb;background:#eff6ff }
+        .svc-sub-item input[type=checkbox] { accent-color:#2563eb;width:15px;height:15px;flex-shrink:0;margin-top:2px }
+        .svc-sub-name { font-size:12px;font-weight:600;color:#1f2937;line-height:1.4 }
+        .svc-sub-desc { font-size:11px;color:#6b7280;margin-top:1px }
+        .svc-sub-deadline { font-size:10px;color:#2563eb;font-weight:600;margin-top:2px }
+    </style>
 </head>
 <body>
 <div class="app-container">
@@ -72,7 +79,7 @@
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>#</th><th>Name</th><th>PAN</th><th>Contact</th><th>Email</th><th>GST</th><th>Services</th><th>Status</th><th>Actions</th></tr>
+                        <tr><th>#</th><th>Name</th><th>Type</th><th>PAN</th><th>Contact</th><th>GST</th><th>Services</th><th>Status</th><th>Actions</th></tr>
                     </thead>
                     <tbody id="clientBody">
                         <tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
@@ -85,7 +92,7 @@
 
 <!-- ADD / EDIT CLIENT MODAL -->
 <div class="modal-overlay" id="clientModal">
-    <div class="modal-box" style="max-width:680px">
+    <div class="modal-box" style="max-width:720px">
         <div class="modal-header">
             <span class="modal-title" id="clientModalTitle"><i class="fas fa-user-plus" style="color:#2563eb;margin-right:8px"></i>Add Client</span>
             <button class="modal-close" onclick="closeClientModal()">&times;</button>
@@ -115,6 +122,20 @@
                     style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
             </div>
             <div class="form-group">
+                <label>Assessee Type *</label>
+                <select id="c_assessee_type">
+                    <option value="">— Select Type —</option>
+                    <option value="Individual">Individual</option>
+                    <option value="Proprietorship">Proprietorship</option>
+                    <option value="Firm">Firm</option>
+                    <option value="HUF">HUF</option>
+                    <option value="Company">Company</option>
+                    <option value="Trust">Trust</option>
+                    <option value="AOP/BOI">AOP/BOI</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>Aadhaar Card No.</label>
                 <input type="text" id="c_aadhar" placeholder="12-digit Aadhaar" maxlength="12">
             </div>
@@ -135,13 +156,14 @@
             </div>
         </div>
 
-        <!-- Services -->
-        <div style="margin-top:16px">
-            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:10px">
+        <!-- 2-level Services -->
+        <div style="margin-top:18px">
+            <label style="font-size:13px;font-weight:700;color:#374151;display:block;margin-bottom:10px">
                 <i class="fas fa-list-check" style="color:#2563eb;margin-right:6px"></i>Services
+                <span style="font-size:11px;color:#9ca3af;font-weight:400;margin-left:6px">Tick a main service to expand sub-services</span>
             </label>
-            <div class="checkbox-grid" id="servicesCheckboxGrid">
-                <span class="text-muted">Loading services…</span>
+            <div id="servicesTree">
+                <span style="color:#9ca3af;font-size:13px">Loading services…</span>
             </div>
         </div>
 
@@ -159,34 +181,28 @@
             <span class="modal-title"><i class="fas fa-file-excel" style="color:#16a34a;margin-right:8px"></i>Import Clients from Excel</span>
             <button class="modal-close" onclick="closeModal('importModal')">&times;</button>
         </div>
-
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#92400e">
             <i class="fas fa-info-circle" style="margin-right:6px"></i>
-            Download the Excel template first, fill it, then upload here. If any PAN already exists in the system the entire import will stop.
+            Download the Excel template first, fill it, then upload here. If any PAN already exists the entire import will stop.
         </div>
-
         <div class="import-zone" id="importZone" onclick="document.getElementById('excelFile').click()"
              ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
             <i class="fas fa-cloud-upload-alt"></i>
-            <p style="font-size:15px;font-weight:600;color:#374151;margin-bottom:4px">Click to upload or drag & drop</p>
+            <p style="font-size:15px;font-weight:600;color:#374151;margin-bottom:4px">Click to upload or drag &amp; drop</p>
             <p style="font-size:12px;color:#9ca3af">.xlsx or .xls files only</p>
         </div>
         <input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(event)">
-
         <div id="importPreviewSection" style="display:none">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;margin-bottom:8px">
                 <span style="font-size:13px;font-weight:700;color:#374151" id="importSummary"></span>
                 <button class="btn btn-secondary btn-sm" onclick="clearImport()"><i class="fas fa-times"></i> Clear</button>
             </div>
             <div class="import-preview table-wrapper">
-                <table>
-                    <thead><tr><th>#</th><th>Name</th><th>PAN</th><th>Contact</th><th>Status</th></tr></thead>
-                    <tbody id="importPreviewBody"></tbody>
-                </table>
+                <table><thead><tr><th>#</th><th>Name</th><th>PAN</th><th>Contact</th><th>Status</th></tr></thead>
+                <tbody id="importPreviewBody"></tbody></table>
             </div>
             <div id="importErrorBox" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;margin-top:12px;font-size:13px;color:#991b1b"></div>
         </div>
-
         <div class="form-actions">
             <button class="btn btn-secondary" onclick="closeModal('importModal')">Cancel</button>
             <button class="btn btn-success" id="importBtn" onclick="runImport()" disabled><i class="fas fa-upload"></i> Import Clients</button>
@@ -217,7 +233,6 @@
     </div>
 </div>
 
-<!-- SheetJS for Excel parsing -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../../js/supabase-config.js"></script>
@@ -225,11 +240,14 @@
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
-let allClients = [];
-let allServices = [];
+let allClients  = [];
+let parentSvcs  = []; // is_parent=true
+let subSvcs     = []; // is_parent=false
 let deleteTargetId = null;
-let importData = [];
-let isEditMode = false;
+let importData  = [];
+let isEditMode  = false;
+
+const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 (async () => {
     const profile = await initLayout();
@@ -241,11 +259,11 @@ let isEditMode = false;
     await Promise.all([loadClients(), loadServices()]);
 })();
 
-// ── Load ────────────────────────────────────────────────────
+// ── Load ─────────────────────────────────────────────────────
 async function loadClients() {
     const { data, error } = await _supabase
         .from('clients')
-        .select('*, client_services(service_id, services(name))')
+        .select('*, client_services(service_id, services(id, name, is_parent, parent_id))')
         .order('created_at', { ascending: false });
     if (error) { showToast('Failed to load clients.', 'error'); return; }
     allClients = data || [];
@@ -253,11 +271,16 @@ async function loadClients() {
 }
 
 async function loadServices() {
-    const { data } = await _supabase.from('services').select('id, name, description').eq('is_active', true).order('name').order('description');
-    allServices = data || [];
+    const { data } = await _supabase
+        .from('services')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: true });
+    parentSvcs = (data || []).filter(s => s.is_parent);
+    subSvcs    = (data || []).filter(s => !s.is_parent);
 }
 
-// ── Render table ────────────────────────────────────────────
+// ── Render table ─────────────────────────────────────────────
 function renderTable(clients) {
     const body = document.getElementById('clientBody');
     if (!clients.length) {
@@ -265,24 +288,39 @@ function renderTable(clients) {
         return;
     }
     body.innerHTML = clients.map((c, i) => {
-        const svcs = (c.client_services || []).map(cs => cs.services?.name).filter(Boolean);
-        const svcHtml = svcs.length
-            ? svcs.map(s => `<span class="badge badge-blue" style="margin:1px;font-size:10px">${s}</span>`).join('')
-            : '<span class="text-muted">None</span>';
+        // Show only parent service names (distinct) to keep table clean
+        const svcIds   = (c.client_services || []).map(cs => cs.service_id);
+        const assigned = subSvcs.filter(s => svcIds.includes(s.id));
+        const parentIds = [...new Set(assigned.map(s => s.parent_id).filter(Boolean))];
+        const parentNames = parentIds.map(pid => parentSvcs.find(p => p.id === pid)?.name).filter(Boolean);
+        // also include any direct parent assignments
+        const directParents = (c.client_services || [])
+            .map(cs => cs.services)
+            .filter(s => s?.is_parent)
+            .map(s => s.name);
+        const allSvcNames = [...new Set([...parentNames, ...directParents])];
+        const svcHtml = allSvcNames.length
+            ? allSvcNames.map(n => `<span class="badge badge-blue" style="margin:1px;font-size:10px">${n}</span>`).join('')
+            : '<span style="color:#9ca3af;font-size:12px">None</span>';
+
         return `<tr>
             <td>${i+1}</td>
-            <td><strong>${c.name}</strong><br><span class="text-muted">${c.email_id||''}</span></td>
+            <td><strong>${c.name}</strong><br><span style="font-size:11px;color:#9ca3af">${c.email_id||''}</span></td>
+            <td style="font-size:12px"><span class="badge badge-gray">${c.assessee_type||'—'}</span></td>
             <td><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px">${c.pan_no}</code></td>
             <td>${c.contact_no}</td>
-            <td style="font-size:12px;color:#6b7280">${c.email_id||'—'}</td>
             <td>${c.is_gst_registered
                 ? `<span class="badge badge-green">✓ ${c.gst_no||''}</span>`
                 : '<span class="badge badge-gray">No</span>'}</td>
             <td style="max-width:160px">${svcHtml}</td>
             <td><span class="badge ${c.is_active?'badge-green':'badge-red'}">${c.is_active?'Active':'Inactive'}</span></td>
             <td>
-                <button class="btn btn-secondary btn-sm" onclick='openEditModal(${JSON.stringify(c).replace(/'/g,"\\'")})'><i class="fas fa-edit"></i></button>
-                <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDelete(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="fas fa-trash"></i></button>
+                <button class="btn btn-secondary btn-sm" onclick='openEditModal(${JSON.stringify(c).replace(/'/g,"\\'")})'>
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDelete(${c.id},'${c.name.replace(/'/g,"\\'")}')">
+                    <i class="fas fa-trash"></i>
+                </button>
             </td>
         </tr>`;
     }).join('');
@@ -293,59 +331,164 @@ function filterClients() {
     renderTable(allClients.filter(c =>
         c.name.toLowerCase().includes(q) ||
         c.pan_no.toLowerCase().includes(q) ||
-        (c.contact_no || '').includes(q) ||
-        (c.email_id || '').toLowerCase().includes(q)
+        (c.contact_no||'').includes(q) ||
+        (c.email_id||'').toLowerCase().includes(q)
     ));
 }
 
-// ── Services checkbox grid ──────────────────────────────────
-function renderServicesGrid(selectedIds = []) {
-    const grid = document.getElementById('servicesCheckboxGrid');
-    if (!allServices.length) { grid.innerHTML = '<span class="text-muted">No services added yet.</span>'; return; }
-    grid.innerHTML = allServices.map(s => {
-        const label = s.description ? `${s.name} — <span style="color:#6b7280;font-weight:400">${s.description}</span>` : s.name;
+// ── 2-level service tree ──────────────────────────────────────
+function renderServicesTree(selectedSubIds = []) {
+    const tree = document.getElementById('servicesTree');
+    if (!parentSvcs.length) {
+        tree.innerHTML = '<span style="color:#9ca3af;font-size:13px">No services configured yet.</span>';
+        return;
+    }
+
+    // Determine which parents have at least one sub selected
+    const activePids = new Set(
+        subSvcs.filter(s => selectedSubIds.includes(s.id)).map(s => s.parent_id)
+    );
+
+    tree.innerHTML = parentSvcs.map(p => {
+        const children  = subSvcs.filter(s => s.parent_id === p.id);
+        const parentChecked = activePids.has(p.id);
+        const subsOpen  = parentChecked || false;
+
         return `
-        <label class="checkbox-item ${selectedIds.includes(s.id)?'checked':''}" id="svc_label_${s.id}">
-            <input type="checkbox" value="${s.id}" ${selectedIds.includes(s.id)?'checked':''}
-                onchange="this.closest('.checkbox-item').classList.toggle('checked',this.checked)">
-            <span style="font-size:12px;line-height:1.4">${label}</span>
-        </label>`;
+        <div class="svc-parent-block" id="pblock_${p.id}">
+            <div class="svc-parent-row ${parentChecked ? 'active' : ''}" id="prow_${p.id}"
+                onclick="toggleParentService(${p.id})">
+                <input type="checkbox" id="pchk_${p.id}"
+                    ${parentChecked ? 'checked' : ''}
+                    onclick="event.stopPropagation();toggleParentService(${p.id})">
+                <span class="svc-parent-label">${p.name}</span>
+                ${children.length
+                    ? `<span style="font-size:11px;color:#9ca3af">${selectedSubIds.filter(id => children.some(c=>c.id===id)).length}/${children.length} selected</span>
+                       <i class="fas fa-chevron-down" id="ptoggle_${p.id}" style="color:#9ca3af;font-size:12px;transition:transform .2s;${subsOpen?'transform:rotate(180deg)':''}"></i>`
+                    : ''}
+            </div>
+            ${children.length ? `
+            <div class="svc-subs" id="psubs_${p.id}" style="display:${subsOpen ? 'flex' : 'none'}">
+                ${children.map(s => {
+                    const checked = selectedSubIds.includes(s.id);
+                    const dl = formatDeadline(s.frequency, s.deadline_day, s.deadline_month);
+                    return `
+                    <label class="svc-sub-item ${checked ? 'checked' : ''}" id="sublabel_${s.id}">
+                        <input type="checkbox" value="${s.id}" ${checked ? 'checked' : ''}
+                            onchange="onSubCheck(${p.id}, this)">
+                        <div>
+                            <div class="svc-sub-name">${s.name}</div>
+                            ${s.description ? `<div class="svc-sub-desc">${s.description}</div>` : ''}
+                            <div class="svc-sub-deadline"><i class="fas fa-calendar-alt" style="margin-right:3px"></i>${dl}</div>
+                        </div>
+                    </label>`;
+                }).join('')}
+            </div>` : ''}
+        </div>`;
     }).join('');
 }
 
-function getSelectedServiceIds() {
-    return [...document.querySelectorAll('#servicesCheckboxGrid input[type=checkbox]:checked')].map(el => parseInt(el.value));
+function toggleParentService(pid) {
+    const chk     = document.getElementById(`pchk_${pid}`);
+    const prow    = document.getElementById(`prow_${pid}`);
+    const subsDiv = document.getElementById(`psubs_${pid}`);
+    const arrow   = document.getElementById(`ptoggle_${pid}`);
+    const children = subSvcs.filter(s => s.parent_id === pid);
+
+    if (!children.length) {
+        // No sub-services — toggle parent checkbox directly
+        chk.checked = !chk.checked;
+        prow.classList.toggle('active', chk.checked);
+        return;
+    }
+
+    // Toggle sub-services visibility
+    const isOpen = subsDiv && subsDiv.style.display !== 'none';
+    if (subsDiv) subsDiv.style.display = isOpen ? 'none' : 'flex';
+    if (arrow)   arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+
+    // If opening and nothing selected → check all subs
+    if (!isOpen) {
+        const anySel = [...document.querySelectorAll(`#psubs_${pid} input[type=checkbox]:checked`)].length > 0;
+        if (!anySel) {
+            document.querySelectorAll(`#psubs_${pid} input[type=checkbox]`).forEach(cb => {
+                cb.checked = true;
+                document.getElementById(`sublabel_${cb.value}`)?.classList.add('checked');
+            });
+        }
+        chk.checked = true;
+        prow.classList.add('active');
+    }
+    updateParentCheckState(pid);
 }
 
-// ── Open add/edit ───────────────────────────────────────────
+function onSubCheck(pid, cb) {
+    const label = document.getElementById(`sublabel_${cb.value}`);
+    if (label) label.classList.toggle('checked', cb.checked);
+    updateParentCheckState(pid);
+}
+
+function updateParentCheckState(pid) {
+    const chk      = document.getElementById(`pchk_${pid}`);
+    const prow     = document.getElementById(`prow_${pid}`);
+    const children = subSvcs.filter(s => s.parent_id === pid);
+    const checked  = [...document.querySelectorAll(`#psubs_${pid} input[type=checkbox]:checked`)];
+    const total    = children.length;
+    const selCount = checked.length;
+
+    chk.checked       = selCount > 0;
+    chk.indeterminate = selCount > 0 && selCount < total;
+    prow.classList.toggle('active', selCount > 0);
+
+    // Update counter text
+    const pblock = document.getElementById(`pblock_${pid}`);
+    const counter = pblock?.querySelector('.svc-parent-label + span');
+    if (counter) counter.textContent = `${selCount}/${total} selected`;
+}
+
+function getSelectedSubIds() {
+    return [...document.querySelectorAll('#servicesTree .svc-subs input[type=checkbox]:checked')]
+        .map(cb => parseInt(cb.value));
+}
+
+function formatDeadline(freq, day, month) {
+    if (!freq || freq === 'One-Time / Event Based') return 'As applicable';
+    if (freq === 'Annually' && day && month) return `Due: ${day} ${MONTHS[month]}`;
+    if (day) return `Due: ${day}th of month`;
+    return '—';
+}
+
+// ── Open add / edit ───────────────────────────────────────────
 function openAddModal() {
     isEditMode = false;
     document.getElementById('clientModalTitle').innerHTML = '<i class="fas fa-user-plus" style="color:#2563eb;margin-right:8px"></i>Add Client';
     document.getElementById('c_id').value = '';
     ['c_name','c_address','c_contact','c_email','c_pan','c_aadhar','c_gst_no'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('c_dob').value = '';
+    document.getElementById('c_assessee_type').value = '';
     document.getElementById('c_is_gst').checked = false;
     toggleGSTField();
-    renderServicesGrid([]);
+    renderServicesTree([]);
     openModal('clientModal');
 }
 
 function openEditModal(c) {
     isEditMode = true;
     document.getElementById('clientModalTitle').innerHTML = '<i class="fas fa-user-edit" style="color:#2563eb;margin-right:8px"></i>Edit Client';
-    document.getElementById('c_id').value      = c.id;
-    document.getElementById('c_name').value    = c.name;
-    document.getElementById('c_address').value = c.address || '';
-    document.getElementById('c_contact').value = c.contact_no;
-    document.getElementById('c_email').value   = c.email_id || '';
-    document.getElementById('c_pan').value     = c.pan_no;
-    document.getElementById('c_aadhar').value  = c.aadhar_no || '';
-    document.getElementById('c_dob').value     = c.date_of_birth || '';
-    document.getElementById('c_is_gst').checked = !!c.is_gst_registered;
-    document.getElementById('c_gst_no').value  = c.gst_no || '';
+    document.getElementById('c_id').value            = c.id;
+    document.getElementById('c_name').value          = c.name;
+    document.getElementById('c_address').value       = c.address || '';
+    document.getElementById('c_contact').value       = c.contact_no;
+    document.getElementById('c_email').value         = c.email_id || '';
+    document.getElementById('c_pan').value           = c.pan_no;
+    document.getElementById('c_aadhar').value        = c.aadhar_no || '';
+    document.getElementById('c_dob').value           = c.date_of_birth || '';
+    document.getElementById('c_assessee_type').value = c.assessee_type || '';
+    document.getElementById('c_is_gst').checked      = !!c.is_gst_registered;
+    document.getElementById('c_gst_no').value        = c.gst_no || '';
     toggleGSTField();
     const selectedIds = (c.client_services || []).map(cs => cs.service_id);
-    renderServicesGrid(selectedIds);
+    renderServicesTree(selectedIds);
     openModal('clientModal');
 }
 
@@ -359,24 +502,26 @@ function toggleGSTField() {
         document.getElementById('c_is_gst').checked ? 'block' : 'none';
 }
 
-// ── Save client ─────────────────────────────────────────────
+// ── Save client ───────────────────────────────────────────────
 async function saveClient() {
-    const name      = document.getElementById('c_name').value.trim();
-    const address   = document.getElementById('c_address').value.trim();
-    const contact   = document.getElementById('c_contact').value.trim();
-    const email     = document.getElementById('c_email').value.trim();
-    const pan       = document.getElementById('c_pan').value.trim().toUpperCase();
-    const aadhar    = document.getElementById('c_aadhar').value.trim();
-    const dob       = document.getElementById('c_dob').value || null;
-    const isGST     = document.getElementById('c_is_gst').checked;
-    const gstNo     = document.getElementById('c_gst_no').value.trim().toUpperCase();
-    const svcIds    = getSelectedServiceIds();
+    const name    = document.getElementById('c_name').value.trim();
+    const address = document.getElementById('c_address').value.trim();
+    const contact = document.getElementById('c_contact').value.trim();
+    const email   = document.getElementById('c_email').value.trim();
+    const pan     = document.getElementById('c_pan').value.trim().toUpperCase();
+    const aadhar  = document.getElementById('c_aadhar').value.trim();
+    const dob     = document.getElementById('c_dob').value || null;
+    const type    = document.getElementById('c_assessee_type').value;
+    const isGST   = document.getElementById('c_is_gst').checked;
+    const gstNo   = document.getElementById('c_gst_no').value.trim().toUpperCase();
+    const svcIds  = getSelectedSubIds();
 
     if (!name)    { showToast('Name is required.', 'error'); return; }
     if (!contact) { showToast('Contact number is required.', 'error'); return; }
     if (!pan)     { showToast('PAN is required.', 'error'); return; }
     if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) { showToast('Invalid PAN format. e.g. ABCDE1234F', 'error'); return; }
     if (!/^\d{10}$/.test(contact)) { showToast('Enter valid 10-digit mobile.', 'error'); return; }
+    if (!type) { showToast('Assessee type is required.', 'error'); return; }
     if (isGST && !gstNo) { showToast('GST number is required when GST Registered is checked.', 'error'); return; }
 
     const btn = document.getElementById('clientSubmitBtn');
@@ -386,6 +531,7 @@ async function saveClient() {
         const payload = {
             name, address, contact_no: contact, email_id: email,
             pan_no: pan, aadhar_no: aadhar, date_of_birth: dob,
+            assessee_type: type,
             is_gst_registered: isGST, gst_no: isGST ? gstNo : '',
             updated_at: new Date().toISOString()
         };
@@ -397,7 +543,6 @@ async function saveClient() {
             if (error) throw new Error(error.message);
             await logAudit('UPDATE_CLIENT', 'clients', clientId, null, payload);
         } else {
-            // Check PAN uniqueness
             const { data: existing } = await _supabase.from('clients').select('id').eq('pan_no', pan).single();
             if (existing) throw new Error('A client with this PAN already exists.');
             const profile = getCachedProfile();
@@ -409,7 +554,7 @@ async function saveClient() {
             await logAudit('CREATE_CLIENT', 'clients', clientId, null, payload);
         }
 
-        // Update client_services: delete existing then re-insert
+        // Save selected sub-service IDs
         await _supabase.from('client_services').delete().eq('client_id', clientId);
         if (svcIds.length) {
             await _supabase.from('client_services').insert(
@@ -417,7 +562,7 @@ async function saveClient() {
             );
         }
 
-        showToast(`Client ${isEditMode?'updated':'added'} successfully!`, 'success');
+        showToast(`Client ${isEditMode ? 'updated' : 'added'} successfully!`, 'success');
         closeClientModal();
         await loadClients();
     } catch(err) {
@@ -427,7 +572,7 @@ async function saveClient() {
     }
 }
 
-// ── Delete ──────────────────────────────────────────────────
+// ── Delete ────────────────────────────────────────────────────
 function openDelete(id, name) {
     deleteTargetId = id;
     document.getElementById('deleteClientName').textContent = name;
@@ -445,7 +590,7 @@ async function deleteClient() {
     await loadClients();
 }
 
-// ── Excel Import ────────────────────────────────────────────
+// ── Excel Import ──────────────────────────────────────────────
 function dragOver(e)  { e.preventDefault(); document.getElementById('importZone').classList.add('dragover'); }
 function dragLeave(e) { document.getElementById('importZone').classList.remove('dragover'); }
 function dropFile(e)  { e.preventDefault(); dragLeave(e); processExcelFile(e.dataTransfer.files[0]); }
@@ -461,9 +606,7 @@ function processExcelFile(file) {
             const ws   = wb.Sheets[wb.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
             parseImportRows(rows);
-        } catch(err) {
-            showToast('Could not read file: ' + err.message, 'error');
-        }
+        } catch(err) { showToast('Could not read file: ' + err.message, 'error'); }
     };
     reader.readAsArrayBuffer(file);
 }
@@ -473,56 +616,40 @@ function parseImportRows(rows) {
     const errBox = document.getElementById('importErrorBox');
     errBox.style.display = 'none';
     document.getElementById('importPreviewSection').style.display = 'block';
-
-    const errors = [];
-    const preview = [];
-
+    const errors = [], preview = [];
     rows.forEach((row, idx) => {
-        const rowNum = idx + 2; // Excel row number (1=header)
-        const name    = String(row['Name'] || row['name'] || '').trim();
-        const pan     = String(row['PAN'] || row['pan_no'] || row['PAN No'] || '').trim().toUpperCase();
-        const contact = String(row['Contact No'] || row['contact_no'] || row['Mobile'] || '').trim();
-        const email   = String(row['Email'] || row['email_id'] || '').trim();
-        const address = String(row['Address'] || row['address'] || '').trim();
-        const aadhar  = String(row['Aadhaar'] || row['aadhar_no'] || '').trim();
-        const dob     = row['Date of Birth'] || row['dob'] || '';
-        const isGST   = String(row['GST Registered'] || '').toLowerCase() === 'yes';
-        const gstNo   = String(row['GST No'] || row['gst_no'] || '').trim().toUpperCase();
-
+        const rowNum  = idx + 2;
+        const name    = String(row['Name']||'').trim();
+        const pan     = String(row['PAN']||row['pan_no']||'').trim().toUpperCase();
+        const contact = String(row['Contact No']||row['Mobile']||'').trim();
+        const email   = String(row['Email']||'').trim();
+        const address = String(row['Address']||'').trim();
+        const aadhar  = String(row['Aadhaar']||'').trim();
+        const dob     = row['Date of Birth']||'';
+        const isGST   = String(row['GST Registered']||'').toLowerCase() === 'yes';
+        const gstNo   = String(row['GST No']||'').trim().toUpperCase();
+        const type    = String(row['Assessee Type']||'').trim();
         let rowErr = null;
-        if (!name)    rowErr = `Row ${rowNum}: Name is missing`;
-        else if (!pan) rowErr = `Row ${rowNum}: PAN is missing`;
+        if (!name)    rowErr = `Row ${rowNum}: Name missing`;
+        else if (!pan) rowErr = `Row ${rowNum}: PAN missing`;
         else if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) rowErr = `Row ${rowNum}: Invalid PAN "${pan}"`;
-        else if (!contact || !/^\d{10}$/.test(contact)) rowErr = `Row ${rowNum}: Invalid contact "${contact}"`;
-
+        else if (!contact || !/^\d{10}$/.test(contact))  rowErr = `Row ${rowNum}: Invalid contact "${contact}"`;
         if (rowErr) errors.push(rowErr);
         else importData.push({ name, pan_no: pan, contact_no: contact, email_id: email,
-            address, aadhar_no: aadhar,
+            address, aadhar_no: aadhar, assessee_type: type,
             date_of_birth: dob ? new Date(dob).toISOString().split('T')[0] : null,
-            is_gst_registered: isGST, gst_no: isGST ? gstNo : '',
-            is_active: true });
-
+            is_gst_registered: isGST, gst_no: isGST ? gstNo : '', is_active: true });
         preview.push({ rowNum, name, pan, contact, ok: !rowErr, errMsg: rowErr });
     });
-
     document.getElementById('importPreviewBody').innerHTML = preview.map(p => `
         <tr class="${p.ok ? 'import-row-ok' : 'import-row-err'}">
-            <td>${p.rowNum}</td>
-            <td>${p.name || '—'}</td>
-            <td>${p.pan || '—'}</td>
-            <td>${p.contact || '—'}</td>
-            <td>${p.ok
-                ? '<span class="badge badge-green">✓ OK</span>'
-                : `<span class="badge badge-red">✗ Error</span>`}</td>
+            <td>${p.rowNum}</td><td>${p.name||'—'}</td><td>${p.pan||'—'}</td><td>${p.contact||'—'}</td>
+            <td>${p.ok ? '<span class="badge badge-green">✓ OK</span>' : '<span class="badge badge-red">✗ Error</span>'}</td>
         </tr>`).join('');
-
-    document.getElementById('importSummary').textContent =
-        `${importData.length} valid rows, ${errors.length} errors`;
-
+    document.getElementById('importSummary').textContent = `${importData.length} valid, ${errors.length} errors`;
     if (errors.length) {
         errBox.style.display = 'block';
-        errBox.innerHTML = '<strong><i class="fas fa-exclamation-circle"></i> Fix these errors before importing:</strong><br>' +
-            errors.map(e => `• ${e}`).join('<br>');
+        errBox.innerHTML = '<strong><i class="fas fa-exclamation-circle"></i> Fix errors:</strong><br>' + errors.map(e => `• ${e}`).join('<br>');
         document.getElementById('importBtn').disabled = true;
     } else {
         document.getElementById('importBtn').disabled = false;
@@ -540,22 +667,15 @@ async function runImport() {
     if (!importData.length) return;
     const btn = document.getElementById('importBtn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing…';
-
     try {
-        // Check for duplicate PANs in DB (stop if any found)
         const pans = importData.map(r => r.pan_no);
         const { data: existing } = await _supabase.from('clients').select('pan_no').in('pan_no', pans);
-        if (existing && existing.length > 0) {
-            const dup = existing.map(e => e.pan_no).join(', ');
-            throw new Error(`Import stopped. PAN(s) already exist in system: ${dup}`);
-        }
+        if (existing?.length) throw new Error(`Duplicate PANs: ${existing.map(e=>e.pan_no).join(', ')}`);
         const profile = getCachedProfile();
-        const rows = importData.map(r => ({ ...r, created_by: profile?.id }));
-        const { error } = await _supabase.from('clients').insert(rows);
+        const { error } = await _supabase.from('clients').insert(importData.map(r => ({ ...r, created_by: profile?.id })));
         if (error) throw new Error(error.message);
-
-        await logAudit('IMPORT_CLIENTS', 'clients', null, null, { count: rows.length });
-        showToast(`${rows.length} clients imported successfully!`, 'success');
+        await logAudit('IMPORT_CLIENTS', 'clients', null, null, { count: importData.length });
+        showToast(`${importData.length} clients imported!`, 'success');
         closeModal('importModal');
         clearImport();
         await loadClients();
@@ -567,6 +687,6 @@ async function runImport() {
     }
 }
 </script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{})}</script>
 </body>
 </html>
