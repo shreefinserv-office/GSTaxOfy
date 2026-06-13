@@ -248,11 +248,10 @@
             <div class="form-group" style="grid-column:1/-1">
                 <label>Filing Status</label>
                 <select id="em_status">
-                    <option value="">— Not Set —</option>
-                    <option>Pending</option>
-                    <option>Pending from Client</option>
-                    <option>Under Review</option>
-                    <option>Filed</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Pending from Client">Pending from Client</option>
+                    <option value="Under Review">Under Review</option>
+                    <option value="Filed">Filed</option>
                 </select>
             </div>
         </div>
@@ -409,6 +408,8 @@ function buildAYSelectors() {
     }
     document.getElementById('filterAY').innerHTML = '<option value="">All AY</option>' + opts.join('');
     document.getElementById('em_ay').innerHTML    = opts.join('');
+    // Keep filter as "All AY" by default so clients without AY set are still visible
+    document.getElementById('filterAY').value = '';
 }
 
 // ── Load ──────────────────────────────────────────────────────
@@ -562,8 +563,9 @@ function applyFilters() {
     const filtered = allITClients.filter(c => {
         if (st  && c._effectiveStatus !== st) return false;
         if (itr && c.itr_type !== itr) return false;
-        if (ay  && c.ay !== ay) return false;
-        if (q && !c.name.toLowerCase().includes(q) && !c.pan_no.toLowerCase().includes(q)) return false;
+        // AY filter: only apply if explicitly selected; blank = show all
+        if (ay  && c.ay && c.ay !== ay) return false;
+        if (q && !c.name.toLowerCase().includes(q) && !(c.pan_no||'').toLowerCase().includes(q)) return false;
         return true;
     });
 
@@ -642,7 +644,7 @@ function openEditModal(c) {
     document.getElementById('em_password').value   = ''; // never pre-fill
     document.getElementById('em_ay').value         = c.ay || currentAY();
     document.getElementById('em_itr_type').value   = c.itr_type || '';
-    document.getElementById('em_status').value     = c.status || '';
+    document.getElementById('em_status').value     = c.status || 'Pending';
     openModal('editModal');
 }
 
@@ -681,12 +683,33 @@ async function saveITClient() {
         };
         if (encPwd) payload.it_password = encPwd;
 
-        if (itId) {
-            const { error } = await _supabase.from('it_clients').update(payload).eq('id', parseInt(itId));
+        if (itId && parseInt(itId) > 0) {
+            // Update existing record by id
+            const { error } = await _supabase.from('it_clients')
+                .update(payload)
+                .eq('id', parseInt(itId));
             if (error) throw new Error(error.message);
         } else {
-            const { error } = await _supabase.from('it_clients').insert({ ...payload, created_at: new Date().toISOString() });
-            if (error) throw new Error(error.message);
+            // Check if a record already exists for this client+ay combination
+            const { data: existing } = await _supabase
+                .from('it_clients')
+                .select('id')
+                .eq('client_id', clientId)
+                .eq('ay', ay)
+                .maybeSingle();
+
+            if (existing) {
+                // Update the existing record instead of inserting
+                const { error } = await _supabase.from('it_clients')
+                    .update(payload)
+                    .eq('id', existing.id);
+                if (error) throw new Error(error.message);
+            } else {
+                // Fresh insert
+                const { error } = await _supabase.from('it_clients')
+                    .insert({ ...payload, created_at: new Date().toISOString() });
+                if (error) throw new Error(error.message);
+            }
         }
 
         showToast('IT details saved!', 'success');
