@@ -413,65 +413,105 @@ function buildAYSelectors() {
 
 // ── Load ──────────────────────────────────────────────────────
 async function loadITClients() {
-    // Get IT sub-services (children of "Income Tax Return" parent)
-    const { data: svcData } = await _supabase
+    // Step 1: Find the "Income Tax Return" parent service ID
+    const { data: parents } = await _supabase
         .from('services')
-        .select('id, name, description, deadline_day, deadline_month, parent_id, services!inner(name)')
-        .eq('is_parent', false)
-        .not('parent_id', 'is', null);
+        .select('id, name')
+        .eq('is_parent', true)
+        .ilike('name', '%income tax%');
 
-    // Filter only Income Tax related subs
-    const itSubIds = (svcData||[])
-        .filter(s => s.services?.name?.toLowerCase().includes('income tax'))
-        .map(s => s.id);
+    const itParentIds = (parents || []).map(p => p.id);
 
-    if (!itSubIds.length) {
-        // Fallback: load all clients with any income-tax-named service
+    // Step 2: Get all sub-services under Income Tax parents
+    let itSubIds = [];
+    if (itParentIds.length) {
+        const { data: subs } = await _supabase
+            .from('services')
+            .select('id')
+            .eq('is_parent', false)
+            .in('parent_id', itParentIds);
+        itSubIds = (subs || []).map(s => s.id);
     }
 
-    // Get clients who have at least one IT sub-service assigned
-    const { data: cs } = await _supabase
-        .from('client_services')
-        .select('client_id')
-        .in('service_id', itSubIds.length ? itSubIds : [0]);
+    // Step 3: Also include any service whose name contains income tax (fallback for old data)
+    const { data: namedSvcs } = await _supabase
+        .from('services')
+        .select('id')
+        .eq('is_parent', false)
+        .ilike('name', '%income tax%');
+    const namedIds = (namedSvcs || []).map(s => s.id);
 
-    const clientIds = [...new Set((cs||[]).map(r => r.client_id))];
+    const allItSvcIds = [...new Set([...itSubIds, ...namedIds])];
+
+    // Step 4: Get client_ids that have ANY income tax service
+    let clientIds = [];
+    if (allItSvcIds.length) {
+        const { data: cs } = await _supabase
+            .from('client_services')
+            .select('client_id')
+            .in('service_id', allItSvcIds);
+        clientIds = [...new Set((cs || []).map(r => r.client_id))];
+    }
+
+    // Step 5: Also include clients who have it_clients records (directly added)
+    const { data: itExisting } = await _supabase
+        .from('it_clients')
+        .select('client_id');
+    const itClientIds = (itExisting || []).map(r => r.client_id);
+    clientIds = [...new Set([...clientIds, ...itClientIds])];
 
     if (!clientIds.length) {
-        renderTable([]);
+        allITClients = [];
         renderStats([]);
+        renderTable([]);
         return;
     }
 
-    // Load those clients
-    const { data: clients } = await _supabase
-        .from('clients')
-        .select('id, name, pan_no, contact_no, email_id, date_of_birth, assessee_type, is_active')
-        .in('id', clientIds)
-        .eq('is_active', true)
-        .order('name');
+    // Step 6: Load clients + IT credentials in parallel
+    const [{ data: clients }, { data: creds }] = await Promise.all([
+        _supabase
+            .from('clients')
+            .select('id, name, pan_no, contact_no, email_id, date_of_birth, assessee_type, is_active')
+            .in('id', clientIds)
+            .eq('is_active', true)
+            .order('name'),
+        _supabase
+            .from('it_clients')
+            .select('*')
+            .in('client_id', clientIds)
+    ]);
 
-    // Load IT credentials
-    const { data: creds } = await _supabase
-        .from('it_clients')
-        .select('*')
-        .in('client_id', clientIds);
-
+    // Map creds by client_id — use current AY by default
+    const curAY = currentAY();
     const credsMap = {};
-    (creds||[]).forEach(c => { credsMap[c.client_id] = c; });
+    (creds || []).forEach(c => {
+        // Prefer current AY record, fallback to latest
+        if (!credsMap[c.client_id] || c.ay === curAY) {
+            credsMap[c.client_id] = c;
+        }
+    });
 
-    // Merge and auto-compute overdue
+    // Step 7: Merge + auto overdue
     const today = new Date(); today.setHours(0,0,0,0);
-    allITClients = (clients||[]).map(c => {
+    allITClients = (clients || []).map(c => {
         const cred = credsMap[c.id] || {};
         let effStatus = cred.status || 'Pending';
-
-        // Auto overdue: if status is not Filed and due date has passed
-        if (effStatus !== 'Filed' && cred.due_date) {
-            if (new Date(cred.due_date) < today) effStatus = 'Overdue';
+        if (effStatus !== 'Filed' && cred.due_date && new Date(cred.due_date) < today) {
+            effStatus = 'Overdue';
         }
-
-        return { ...c, ...cred, client_id: c.id, _effectiveStatus: effStatus };
+        return {
+            ...c,
+            ...cred,
+            client_id: c.id,
+            // restore client fields overwritten by cred spread
+            name:         c.name,
+            pan_no:       cred.pan || c.pan_no,
+            contact_no:   c.contact_no,
+            email_id:     c.email_id,
+            date_of_birth: cred.dob || c.date_of_birth,
+            assessee_type: c.assessee_type,
+            _effectiveStatus: effStatus
+        };
     });
 
     renderStats(allITClients);

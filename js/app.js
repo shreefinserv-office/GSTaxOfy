@@ -53,7 +53,12 @@ function setActiveNav() {
     const path = window.location.pathname;
     document.querySelectorAll('.sub-menu-item, .nav-link').forEach(el => {
         const href = el.getAttribute('href');
-        if (href && path.endsWith(href.replace(/^.*\//, ''))) {
+        if (!href) return;
+        // Extract filename from href e.g. /GStaxOfy/pages/Masters/clients.html -> clients.html
+        const hrefFile = href.split('/').pop();
+        if (!hrefFile) return; // skip empty
+        const pathFile = path.split('/').pop();
+        if (hrefFile === pathFile) {
             el.classList.add('active');
             // also open parent sub-menu
             const parent = el.closest('.sub-menu');
