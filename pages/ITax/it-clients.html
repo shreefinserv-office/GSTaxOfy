@@ -114,7 +114,7 @@
                         <div class="it-banner-sub">File ITR, track refunds, respond to notices, and access all IT services for your clients.</div>
                     </div>
                 </div>
-                <button onclick="window.open('https://www.incometax.gov.in/iec/foportal/','_blank')"
+                <button onclick="window.open('https://eportal.incometax.gov.in/iec/foservices/#/login','_blank')"
                     style="background:#f59e0b;border:none;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0">
                     <i class="fas fa-sign-in-alt"></i> Login to IT Portal
                     <i class="fas fa-external-link-alt" style="font-size:11px"></i>
@@ -393,9 +393,10 @@ let activeStatusFilter = '';
 
 // ── AY helpers ────────────────────────────────────────────────
 function currentAY() {
-    const now = new Date();
-    const y   = now.getFullYear();
-    return now.getMonth() >= 3 ? `${y}-${String(y+1).slice(2)}` : `${y-1}-${String(y).slice(2)}`;
+    // Calendar-year basis: Jan–Dec YYYY → AY YYYY-(YY+1)
+    // e.g. any date in 2025 → AY 2025-26
+    const y = new Date().getFullYear();
+    return `${y}-${String(y + 1).slice(2)}`;
 }
 
 function buildAYSelectors() {
@@ -501,16 +502,22 @@ async function loadITClients() {
             effStatus = 'Overdue';
         }
         return {
-            ...c,
-            ...cred,
-            client_id: c.id,
-            // restore client fields overwritten by cred spread
-            name:         c.name,
-            pan_no:       cred.pan || c.pan_no,
-            contact_no:   c.contact_no,
-            email_id:     c.email_id,
+            // Start fresh — don't spread cred directly to avoid id collision
+            client_id:     c.id,
+            _itId:         cred.id || null,   // it_clients.id — explicit, not overwritten
+            name:          c.name,
+            pan_no:        cred.pan || c.pan_no,
+            contact_no:    c.contact_no,
+            email_id:      c.email_id,
             date_of_birth: cred.dob || c.date_of_birth,
+            dob:           cred.dob || c.date_of_birth,
             assessee_type: c.assessee_type,
+            // IT-specific fields from cred
+            ay:            cred.ay || null,
+            itr_type:      cred.itr_type || null,
+            status:        cred.status || null,
+            it_password:   cred.it_password || null,
+            due_date:      cred.due_date || null,
             _effectiveStatus: effStatus
         };
     });
@@ -623,10 +630,10 @@ function renderTable(clients) {
                     <button class="action-btn orange" onclick="copyAISPassword('${c.pan_no}','${c.date_of_birth||c.dob||''}')"
                         title="Copy AIS/TIS/Intimation Password"><i class="fas fa-key"></i></button>
                     <!-- Login to IT Portal -->
-                    <button class="action-btn green" onclick="loginITPortal('${c.pan_no}',${c.id})"
+                    <button class="action-btn green" onclick="loginITPortal('${c.pan_no}',${c.client_id})"
                         title="Login to IT Portal for this client"><i class="fas fa-sign-in-alt"></i></button>
                     <!-- Documents -->
-                    <button class="action-btn purple" onclick="openDocsModal(${c.id},'${c.name.replace(/'/g,"\\'")}','${c.contact_no||''}')"
+                    <button class="action-btn purple" onclick="openDocsModal(${c.client_id},'${c.name.replace(/'/g,"\\'")}','${c.contact_no||''}')"
                         title="Documents Checklist"><i class="fas fa-folder-open"></i></button>
                 </div>
             </td>
@@ -636,8 +643,9 @@ function renderTable(clients) {
 
 // ── Edit modal ────────────────────────────────────────────────
 function openEditModal(c) {
-    document.getElementById('em_id').value         = c.id || '';       // it_clients.id
-    document.getElementById('em_clientId').value   = c.client_id || c.id;
+    // c._itId is the it_clients table row id (set during merge); c.client_id is the clients table id
+    document.getElementById('em_id').value         = c._itId || '';    // it_clients.id (may be blank if no record yet)
+    document.getElementById('em_clientId').value   = c.client_id;
     document.getElementById('em_clientName').textContent = c.name;
     document.getElementById('em_pan').value        = c.pan_no || '';
     document.getElementById('em_dob').value        = c.date_of_birth || c.dob || '';
@@ -683,11 +691,12 @@ async function saveITClient() {
         };
         if (encPwd) payload.it_password = encPwd;
 
-        if (itId && parseInt(itId) > 0) {
-            // Update existing record by id
+        const itIdNum = itId ? parseInt(itId) : NaN;
+        if (!isNaN(itIdNum) && itIdNum > 0) {
+            // Update existing it_clients record by its own id
             const { error } = await _supabase.from('it_clients')
                 .update(payload)
-                .eq('id', parseInt(itId));
+                .eq('id', itIdNum);
             if (error) throw new Error(error.message);
         } else {
             // Check if a record already exists for this client+ay combination
@@ -747,53 +756,35 @@ function closeAisPopup() {
     document.getElementById('aisPopup').style.display = 'none';
 }
 
-// ── Auto-Login ────────────────────────────────────────────────
+// ── Login to IT Portal ────────────────────────────────────────
 async function loginITPortal(pan, clientId) {
-    // Find stored encrypted password
+    // Fetch stored credentials
     const { data: cred } = await _supabase
         .from('it_clients')
         .select('it_password, pan')
         .eq('client_id', clientId)
-        .single();
+        .maybeSingle();
 
+    const usePan = (cred?.pan || pan || '').toUpperCase();
     let pwd = '';
     if (cred?.it_password) {
         pwd = await decryptText(cred.it_password) || '';
     }
 
-    const usePan = cred?.pan || pan;
-
-    // Open IT portal, pass credentials via sessionStorage for auto-fill
-    sessionStorage.setItem('it_autofill', JSON.stringify({ pan: usePan, pwd }));
-    const tab = window.open('https://www.incometax.gov.in/iec/foportal/', '_blank');
-
-    // Inject auto-fill script into new tab after load
-    // Note: Works because IT portal has no CAPTCHA, only a checkbox
-    if (tab) {
-        const interval = setInterval(() => {
-            try {
-                if (!tab.closed && tab.document?.readyState === 'complete') {
-                    clearInterval(interval);
-                    tab.eval(`
-                        (function(){
-                            const pan = '${usePan}';
-                            const pwd = '${pwd.replace(/'/g,"\\'")}';
-                            const fill = () => {
-                                const panEl = document.querySelector('input[formcontrolname="userId"], #userId, input[placeholder*="PAN"], input[name="userId"]');
-                                const pwdEl = document.querySelector('input[type="password"], input[formcontrolname="password"]');
-                                if (panEl) { panEl.value = pan; panEl.dispatchEvent(new Event('input',{bubbles:true})); }
-                                if (pwdEl) { pwdEl.value = pwd; pwdEl.dispatchEvent(new Event('input',{bubbles:true})); }
-                            };
-                            setTimeout(fill, 2000);
-                        })();
-                    `);
-                }
-            } catch(e) { clearInterval(interval); }
-        }, 500);
-        setTimeout(() => clearInterval(interval), 15000); // stop after 15s
+    // Copy PAN + Password to clipboard as text so user can paste on portal
+    if (usePan || pwd) {
+        const clip = `User ID (PAN): ${usePan}\nPassword: ${pwd || '(not stored)'}`;
+        try { await navigator.clipboard.writeText(clip); } catch(_) {}
     }
 
-    if (!pwd) showToast('No password stored. Login page opened — fill manually.', 'info');
+    // Open the correct IT e-filing login URL
+    window.open('https://eportal.incometax.gov.in/iec/foservices/#/login', '_blank');
+
+    if (pwd) {
+        showToast(`Credentials copied to clipboard! Paste User ID & Password on the portal.`, 'success');
+    } else {
+        showToast(`Portal opened. No password stored — fill in manually. (PAN: ${usePan})`, 'info');
+    }
 }
 
 // ── Documents modal ───────────────────────────────────────────
