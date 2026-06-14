@@ -101,13 +101,11 @@
                     <option value="intern">Intern</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Department *</label>
-                <select id="c_department">
-                    <option value="">— Select —</option>
-                    <option>GST</option><option>Income Tax</option><option>Audit</option>
-                    <option>Accounts</option><option>TDS</option><option>Management</option><option>Other</option>
-                </select>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Department * <span style="font-size:11px;color:#9ca3af;font-weight:400">(select one or more)</span></label>
+                <div id="c_dept_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px">
+                    <!-- populated by JS -->
+                </div>
             </div>
             <div class="form-group" style="grid-column:1/-1">
                 <label>Address</label>
@@ -159,12 +157,11 @@
                     <option value="intern">Intern</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Department *</label>
-                <select id="e_department">
-                    <option>GST</option><option>Income Tax</option><option>Audit</option>
-                    <option>Accounts</option><option>TDS</option><option>Management</option><option>Other</option>
-                </select>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Department * <span style="font-size:11px;color:#9ca3af;font-weight:400">(select one or more)</span></label>
+                <div id="e_dept_grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:6px">
+                    <!-- populated by JS -->
+                </div>
             </div>
             <div class="form-group">
                 <label>Status</label>
@@ -229,6 +226,49 @@
 let allUsers = [];
 let deleteTargetId = null;
 
+const DEPARTMENTS = ['GST','Income Tax','Audit','Accounts','TDS','Management','Other'];
+
+const DEPT_ICONS = {
+    'GST':          'fa-file-invoice-dollar',
+    'Income Tax':   'fa-landmark',
+    'Audit':        'fa-search-dollar',
+    'Accounts':     'fa-book',
+    'TDS':          'fa-percentage',
+    'Management':   'fa-briefcase',
+    'Other':        'fa-ellipsis-h'
+};
+
+function buildDeptCheckboxes(gridId, selectedDepts) {
+    const sel = Array.isArray(selectedDepts)
+        ? selectedDepts
+        : (selectedDepts||'').split(',').map(s=>s.trim()).filter(Boolean);
+    document.getElementById(gridId).innerHTML = DEPARTMENTS.map(d => `
+        <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid ${sel.includes(d)?'#2563eb':'#e5e7eb'};border-radius:8px;cursor:pointer;background:${sel.includes(d)?'#eff6ff':'#fff'};transition:all .15s;user-select:none;font-size:13px;font-weight:500;color:#374151" id="deptlabel_${gridId}_${d.replace(/\s/g,'_')}">
+            <input type="checkbox" value="${d}" ${sel.includes(d)?'checked':''} style="accent-color:#2563eb;width:15px;height:15px;flex-shrink:0"
+                onchange="toggleDeptLabel(this,'${gridId}')">
+            <i class="fas ${DEPT_ICONS[d]||'fa-tag'}" style="font-size:12px;color:${sel.includes(d)?'#2563eb':'#9ca3af'}"></i>
+            ${d}
+        </label>`).join('');
+}
+
+function toggleDeptLabel(cb, gridId) {
+    const lbl = cb.closest('label');
+    if (cb.checked) {
+        lbl.style.borderColor = '#2563eb';
+        lbl.style.background  = '#eff6ff';
+        lbl.querySelector('i').style.color = '#2563eb';
+    } else {
+        lbl.style.borderColor = '#e5e7eb';
+        lbl.style.background  = '#fff';
+        lbl.querySelector('i').style.color = '#9ca3af';
+    }
+}
+
+function getCheckedDepts(gridId) {
+    return [...document.getElementById(gridId).querySelectorAll('input[type=checkbox]:checked')]
+        .map(cb => cb.value);
+}
+
 (async () => {
     const profile = await initLayout(['master']);
     if (!profile) return;
@@ -237,6 +277,9 @@ let deleteTargetId = null;
 
     const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
     if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+
+    buildDeptCheckboxes('c_dept_grid', []);
+    buildDeptCheckboxes('e_dept_grid', []);
 
     await loadUsers();
 
@@ -274,7 +317,7 @@ function renderTable(users) {
             <td><span class="text-muted">${u.id.substring(0,8)}…</span></td>
             <td>${u.phone}</td>
             <td><span class="badge role-${u.role}">${u.role.charAt(0).toUpperCase()+u.role.slice(1)}</span></td>
-            <td>${u.department}</td>
+            <td style="max-width:180px">${(u.department||'').split(',').map(d=>d.trim()).filter(Boolean).map(d=>`<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;margin:1px">${d}</span>`).join('')||'—'}</td>
             <td><span class="badge ${u.is_active?'badge-green':'badge-red'}">${u.is_active?'Active':'Inactive'}</span></td>
             <td>
                 <button class="btn btn-secondary btn-sm" onclick='openEdit(${JSON.stringify(u)})'><i class="fas fa-edit"></i></button>
@@ -288,7 +331,7 @@ function filterUsers() {
     renderTable(allUsers.filter(u =>
         u.full_name.toLowerCase().includes(q) ||
         u.username.toLowerCase().includes(q) ||
-        u.department.toLowerCase().includes(q) ||
+        (u.department||'').toLowerCase().includes(q) ||
         u.role.toLowerCase().includes(q)
     ));
 }
@@ -299,13 +342,14 @@ async function createUser() {
     const mobile     = document.getElementById('c_mobile').value.trim();
     const username   = document.getElementById('c_username').value.trim();
     const role       = document.getElementById('c_role').value;
-    const department = document.getElementById('c_department').value;
+    const depts      = getCheckedDepts('c_dept_grid');
+    const department = depts.join(', ');
     const address    = document.getElementById('c_address').value.trim();
     const password   = document.getElementById('c_password').value;
     const confirm    = document.getElementById('c_confirm').value;
 
-    if (!fullName||!email||!mobile||!username||!role||!department||!password) {
-        showToast('Please fill all required fields.', 'error'); return;
+    if (!fullName||!email||!mobile||!username||!role||!depts.length||!password) {
+        showToast('Please fill all required fields (including at least one Department).', 'error'); return;
     }
     if (password !== confirm) { showToast('Passwords do not match.', 'error'); return; }
     if (password.length < 8)  { showToast('Password must be at least 8 characters.', 'error'); return; }
@@ -348,7 +392,7 @@ async function createUser() {
         // Reset form
         ['c_fullName','c_email','c_mobile','c_username','c_address','c_password','c_confirm'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('c_role').value = '';
-        document.getElementById('c_department').value = '';
+        buildDeptCheckboxes('c_dept_grid', []);
         await loadUsers();
     } catch (err) {
         showToast(err.message, 'error');
@@ -361,9 +405,9 @@ function openEdit(user) {
     document.getElementById('e_id').value         = user.id;
     document.getElementById('e_fullName').value   = user.full_name;
     document.getElementById('e_mobile').value     = user.phone;
-    document.getElementById('e_role').value       = user.role;
-    document.getElementById('e_department').value = user.department;
-    document.getElementById('e_status').value     = String(user.is_active);
+    document.getElementById('e_role').value   = user.role;
+    document.getElementById('e_status').value = String(user.is_active);
+    buildDeptCheckboxes('e_dept_grid', user.department || '');
     // email shown as hint
     document.getElementById('e_email').value = '(linked to auth — cannot change here)';
     document.getElementById('e_email').disabled = true;
@@ -375,10 +419,11 @@ async function updateUser() {
     const fullName   = document.getElementById('e_fullName').value.trim();
     const mobile     = document.getElementById('e_mobile').value.trim();
     const role       = document.getElementById('e_role').value;
-    const department = document.getElementById('e_department').value;
+    const depts      = getCheckedDepts('e_dept_grid');
+    const department = depts.join(', ');
     const isActive   = document.getElementById('e_status').value === 'true';
 
-    if (!fullName||!mobile||!role||!department) { showToast('Fill all required fields.', 'error'); return; }
+    if (!fullName||!mobile||!role||!depts.length) { showToast('Fill all required fields (including at least one Department).', 'error'); return; }
     if (!/^\d{10}$/.test(mobile)) { showToast('Enter valid 10-digit mobile.', 'error'); return; }
 
     const btn = document.getElementById('editBtn');
