@@ -409,8 +409,8 @@ function buildAYSelectors() {
     }
     document.getElementById('filterAY').innerHTML = '<option value="">All AY</option>' + opts.join('');
     document.getElementById('em_ay').innerHTML    = opts.join('');
-    // Keep filter as "All AY" by default so clients without AY set are still visible
-    document.getElementById('filterAY').value = '';
+    // Default filter to current AY
+    document.getElementById('filterAY').value = cur;
 }
 
 // ── Load ──────────────────────────────────────────────────────
