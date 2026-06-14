@@ -27,7 +27,7 @@
     </style>
     <link rel="manifest" href="../manifest.json">
     <meta name="theme-color" content="#2563eb">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../assets/icon-192.png">
@@ -225,10 +225,16 @@ async function loadPortals() {
     const grid = document.getElementById('portalsGrid');
     if (!portals || !portals.length) { grid.innerHTML = '<span class="text-muted">No portals yet.</span>'; return; }
     grid.innerHTML = portals.map(p => {
-        const isIT = p.name.toLowerCase().includes('income tax');
+        const isIT  = p.name.toLowerCase().includes('income tax');
+        const isGST = p.name.toLowerCase() === 'gst portal' || p.name.toLowerCase() === 'gst return filing' || p.name.toLowerCase().match(/^gst\s*(portal)?$/);
         if (isIT) {
             return `<a class="portal-card" href="${ROUTES.itClients()}" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)">
-                <i class="fas fa-file-alt"></i>${p.name}
+                <i class="fas fa-landmark"></i>${p.name}
+            </a>`;
+        }
+        if (isGST) {
+            return `<a class="portal-card" href="${ROUTES.gstClients()}" style="background:linear-gradient(135deg,#064e3b,#059669)">
+                <i class="fas fa-file-invoice-dollar"></i>${p.name}
             </a>`;
         }
         return `<a class="portal-card" href="${p.url}" target="_blank" rel="noopener">

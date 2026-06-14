@@ -70,6 +70,16 @@ function renderSidebar(activePage) {
                 <i class="fas fa-history"></i><span>Audit Log</span>
             </a>
         </li>
+        <li class="nav-item">
+            <div class="nav-link${(activePage==='it-clients'||activePage==='gst-clients')?' active':''}" onclick="toggleDropdown('portals')">
+                <i class="fas fa-globe"></i><span>Tax Portals</span>
+                <i class="fas fa-chevron-down dropdown-arrow" id="portals-arrow"></i>
+            </div>
+            <div class="sub-menu${(activePage==='it-clients'||activePage==='gst-clients')?' open':''}" id="portals-menu">
+                <a class="sub-menu-item${activePage==='it-clients'?' active':''}" href="${r.itClients()}"><i class="fas fa-landmark"></i>IT Clients</a>
+                <a class="sub-menu-item${activePage==='gst-clients'?' active':''}" href="${r.gstClients()}"><i class="fas fa-file-invoice-dollar"></i>GST Clients</a>
+            </div>
+        </li>
     </nav>`;
 
     const placeholder = document.getElementById('sidebar-placeholder');

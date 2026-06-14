@@ -53,6 +53,7 @@ const ROUTES = {
     receivables:    () => BASE + '/pages/Reports/receivables.html',
     profitability:  () => BASE + '/pages/Reports/profitability.html',
     itClients:      () => BASE + '/pages/ITax/it-clients.html',
+    gstClients:     () => BASE + '/pages/GST/gst-clients.html',
 };
 
 function goTo(route) { window.location.href = route; }

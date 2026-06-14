@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GStaxOfy — GST Client Management</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../../css/style.css">
+    <link rel="manifest" href="../../manifest.json">
+    <meta name="theme-color" content="#059669">
+    <style>
+        .gst-banner{background:linear-gradient(135deg,#064e3b 0%,#059669 100%);border-radius:12px;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px}
+        .gst-banner-left{display:flex;align-items:center;gap:14px}
+        .gst-banner-icon{width:44px;height:44px;background:rgba(255,255,255,.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0}
+        .gst-banner-title{font-size:15px;font-weight:700;color:#fff;margin:0}
+        .gst-banner-sub{font-size:12px;color:rgba(255,255,255,.7);margin-top:2px}
+        .gst-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+        .gst-stat{background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .15s}
+        .gst-stat:hover{border-color:#059669;transform:translateY(-1px)}
+        .gst-stat.active{border-color:#059669;background:#f0fdf4}
+        .gst-stat-num{font-size:26px;font-weight:800}
+        .gst-stat-lbl{font-size:11px;color:#6b7280;font-weight:600;margin-top:2px;text-transform:uppercase;letter-spacing:.4px}
+        .s-filed{background:#dcfce7;color:#14532d}
+        .s-pending{background:#fef9c3;color:#854d0e}
+        .s-review{background:#dbeafe;color:#1e40af}
+        .s-pfc{background:#f3e8ff;color:#6b21a8}
+        .s-overdue{background:#fee2e2;color:#991b1b}
+        .status-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+        .action-btn{width:32px;height:32px;border-radius:7px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:13px;transition:all .15s;color:#374151}
+        .action-btn:hover{border-color:#2563eb;color:#2563eb;background:#eff6ff}
+        .action-btn.green:hover{border-color:#059669;color:#059669;background:#f0fdf4}
+        .action-btn.purple:hover{border-color:#7c3aed;color:#7c3aed;background:#f5f3ff}
+        /* GSTR checkboxes */
+        .gstr-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .gstr-row{border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;transition:all .15s}
+        .gstr-row.checked{border-color:#059669;background:#f0fdf4}
+        .gstr-row-top{display:flex;align-items:center;gap:8px}
+        .gstr-row-top input[type=checkbox]{accent-color:#059669;width:15px;height:15px;flex-shrink:0}
+        .gstr-row-label{font-size:12px;font-weight:700;color:#1f2937;flex:1}
+        .gstr-row-desc{font-size:10px;color:#6b7280}
+        .gstr-status-select{width:100%;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:11px;background:#fff;display:none}
+        .gstr-row.checked .gstr-status-select{display:block}
+        /* tags */
+        .gstr-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;margin:1px}
+        .gstr-tag.s-filed{background:#dcfce7;color:#14532d}
+        .gstr-tag.s-pending{background:#fef9c3;color:#854d0e}
+        .gstr-tag.s-review{background:#dbeafe;color:#1e40af}
+        .gstr-tag.s-pfc{background:#f3e8ff;color:#6b21a8}
+        .gstr-tag.s-overdue{background:#fee2e2;color:#991b1b}
+        /* password */
+        .pwd-field-wrap{position:relative}
+        .pwd-field-wrap input{padding-right:38px!important}
+        .pwd-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;color:#9ca3af;font-size:14px;background:none;border:none;padding:0}
+        .pwd-eye:hover{color:#059669}
+        /* copy popup */
+        .copy-popup-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center}
+        .copy-popup-box{background:#fff;border-radius:16px;padding:32px 36px;text-align:center;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+        .copy-check-circle{width:64px;height:64px;background:linear-gradient(135deg,#059669,#10b981);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+        .filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+        .filter-bar select,.filter-bar input[type=text]{padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff}
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo"><img src="../../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><span class="ca-logo-text" style="display:none">CA</span></div>
+            <div class="company-info"><h1 id="firmNameHeader">GStaxOfy</h1><p>GSTaxOfy</p></div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details"><div class="user-name" id="headerUserName">Loading…</div><div class="user-role" id="headerUserRole"></div></div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
+            </div>
+        </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+
+            <!-- Banner -->
+            <div class="gst-banner">
+                <div class="gst-banner-left">
+                    <div class="gst-banner-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+                    <div>
+                        <div class="gst-banner-title">GST Portal — Client Management</div>
+                        <div class="gst-banner-sub">File GST returns, track compliance, manage credentials and documents for all GST clients.</div>
+                    </div>
+                </div>
+                <button onclick="window.open('https://www.gst.gov.in/','_blank')"
+                    style="background:#f59e0b;border:none;color:#fff;padding:10px 18px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0">
+                    <i class="fas fa-sign-in-alt"></i> Login to GST Portal <i class="fas fa-external-link-alt" style="font-size:11px"></i>
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div class="gst-stats">
+                <div class="gst-stat" onclick="setStatusFilter('')"><div class="gst-stat-num" id="st_total" style="color:#059669">—</div><div class="gst-stat-lbl">Total Clients</div></div>
+                <div class="gst-stat" onclick="setStatusFilter('Filed')"><div class="gst-stat-num" id="st_filed" style="color:#059669">—</div><div class="gst-stat-lbl">GST Filed</div></div>
+                <div class="gst-stat" onclick="setStatusFilter('Pending')"><div class="gst-stat-num" id="st_pending" style="color:#d97706">—</div><div class="gst-stat-lbl">Pending</div></div>
+                <div class="gst-stat" onclick="setStatusFilter('Under Review')"><div class="gst-stat-num" id="st_review" style="color:#2563eb">—</div><div class="gst-stat-lbl">Under Review</div></div>
+                <div class="gst-stat" onclick="setStatusFilter('Pending from Client')"><div class="gst-stat-num" id="st_pfc" style="color:#7c3aed">—</div><div class="gst-stat-lbl">Pending from Client</div></div>
+                <div class="gst-stat" onclick="setStatusFilter('Overdue')"><div class="gst-stat-num" id="st_overdue" style="color:#dc2626">—</div><div class="gst-stat-lbl">Overdue</div></div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filter-bar">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search name or GSTIN…" oninput="applyFilters()">
+                </div>
+                <select id="filterStatus" onchange="applyFilters()">
+                    <option value="">All Status</option>
+                    <option>Filed</option><option>Pending</option><option>Under Review</option>
+                    <option>Pending from Client</option><option>Overdue</option>
+                </select>
+                <select id="filterGSTRType" onchange="applyFilters()">
+                    <option value="">All GSTR Types</option>
+                    <option>GSTR-1 (Regular Monthly)</option>
+                    <option>GSTR-3B (Regular Monthly)</option>
+                    <option>GSTR-1 (QRMP Quarterly)</option>
+                    <option>GSTR-3B (QRMP Quarterly)</option>
+                    <option>CMP-08 (Composition Quarterly)</option>
+                    <option>GSTR-4 (Composition Annual)</option>
+                    <option>GSTR-9 (Annual)</option>
+                    <option>GSTR-9C (Annual)</option>
+                </select>
+                <select id="filterFY" onchange="applyFilters()"></select>
+                <select id="filterMonth" onchange="applyFilters()"></select>
+                <button class="btn btn-secondary btn-sm" onclick="clearFilters()"><i class="fas fa-times"></i> Clear</button>
+            </div>
+
+            <!-- Table -->
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Client</th><th>GSTIN / Type</th><th>Mobile</th>
+                            <th>FY</th><th>Month</th><th>GSTR Types &amp; Status</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gstBody">
+                        <tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box" style="max-width:620px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-edit" style="color:#059669;margin-right:8px"></i>Edit GST Details — <span id="em_clientName" style="color:#6b7280;font-weight:400"></span></span>
+            <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+        </div>
+        <input type="hidden" id="em_id">
+        <input type="hidden" id="em_clientId">
+
+        <div class="form-grid" style="margin-bottom:16px">
+            <div class="form-group">
+                <label>User ID (GSTIN) *</label>
+                <input type="text" id="em_gstin" placeholder="22AAAAA0000A1Z5" maxlength="15"
+                    style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+            </div>
+            <div class="form-group">
+                <label>Financial Year</label>
+                <select id="em_fy"></select>
+            </div>
+            <div class="form-group">
+                <label>Month</label>
+                <select id="em_month"></select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>GST Portal Login Password <span style="color:#9ca3af;font-weight:400;font-size:11px">(AES-256 encrypted — leave blank to keep existing)</span></label>
+                <div class="pwd-field-wrap">
+                    <input type="password" id="em_password" placeholder="Leave blank to keep existing">
+                    <button class="pwd-eye" type="button" onclick="togglePwd('em_password',this)"><i class="fas fa-eye"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GSTR checkboxes -->
+        <div style="margin-bottom:16px">
+            <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:10px">
+                <i class="fas fa-check-square" style="color:#059669;margin-right:5px"></i>GSTR Types &amp; Filing Status
+            </label>
+            <div class="gstr-grid" id="gstrCheckboxGrid"></div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('editModal')">Cancel</button>
+            <button class="btn btn-primary" id="editSaveBtn" onclick="saveGSTClient()" style="background:#059669;border-color:#059669">
+                <i class="fas fa-save"></i> Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- COPY POPUP -->
+<div id="copyPopup" style="display:none" class="copy-popup-overlay" onclick="closeCopyPopup()">
+    <div class="copy-popup-box" onclick="event.stopPropagation()">
+        <div class="copy-check-circle"><i class="fas fa-check" style="color:#fff;font-size:26px"></i></div>
+        <h3 style="color:#1f2937;margin:0 0 8px;font-size:18px" id="copyPopupTitle">Copied!</h3>
+        <p style="color:#6b7280;font-size:13px;margin-bottom:20px" id="copyPopupMsg"></p>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;background:#059669;border-color:#059669" onclick="closeCopyPopup()">OK</button>
+    </div>
+</div>
+
+<!-- DOCUMENTS MODAL -->
+<div class="modal-overlay" id="docsModal">
+    <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-folder-open" style="color:#059669;margin-right:8px"></i>Documents — <span id="dm_clientName" style="color:#6b7280;font-weight:400"></span></span>
+            <button class="modal-close" onclick="closeModal('docsModal')">&times;</button>
+        </div>
+        <input type="hidden" id="dm_gstClientId">
+        <input type="hidden" id="dm_clientMobile">
+        <input type="hidden" id="dm_clientName_raw">
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+            <input type="text" id="dm_newDoc" placeholder="Document name e.g. GSTR-2B, Bank Statement…"
+                style="flex:1;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px"
+                onkeydown="if(event.key==='Enter')addDoc()">
+            <button class="btn btn-primary btn-sm" style="background:#059669;border-color:#059669" onclick="addDoc()"><i class="fas fa-plus"></i> Add</button>
+        </div>
+        <div id="docList" style="max-height:300px;overflow-y:auto;margin-bottom:16px">
+            <div style="text-align:center;padding:20px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i></div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#166534">
+            <i class="fas fa-info-circle" style="margin-right:5px"></i>WhatsApp button sends only <strong>unchecked (pending)</strong> documents to the client.
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('docsModal')">Close</button>
+            <button class="btn btn-success" onclick="sendWhatsApp()" style="background:#25d366;border-color:#25d366">
+                <i class="fab fa-whatsapp"></i> Send WhatsApp
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- LOGOUT MODAL -->
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script src="../../js/app.js"></script>
+<script src="../../js/sidebar.js"></script>
+<script src="../../js/layout.js"></script>
+<script>
+// ────────────────────────────────────────────────────────────
+// AES-256-GCM encryption
+// ────────────────────────────────────────────────────────────
+const ENC_PASSPHRASE = 'Ganu&Anu#1999! Love';
+
+async function deriveKey(passphrase, salt) {
+    const enc = new TextEncoder();
+    const km  = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+        { name:'PBKDF2', salt, iterations:200000, hash:'SHA-256' },
+        km, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
+    );
+}
+async function encryptText(plain) {
+    const enc  = new TextEncoder();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const key  = await deriveKey(ENC_PASSPHRASE, salt);
+    const ct   = await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, enc.encode(plain));
+    const buf  = new Uint8Array(salt.length + iv.length + ct.byteLength);
+    buf.set(salt,0); buf.set(iv,16); buf.set(new Uint8Array(ct),28);
+    return btoa(String.fromCharCode(...buf));
+}
+async function decryptText(b64) {
+    try {
+        const buf  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const salt = buf.slice(0,16); const iv = buf.slice(16,28); const ct = buf.slice(28);
+        const key  = await deriveKey(ENC_PASSPHRASE, salt);
+        const dec  = await crypto.subtle.decrypt({name:'AES-GCM',iv}, key, ct);
+        return new TextDecoder().decode(dec);
+    } catch { return null; }
+}
+
+// ────────────────────────────────────────────────────────────
+// FY / Month helpers
+// GST FY: Apr–Mar  (same as Indian FY)
+// e.g. today = 2 May 2026  →  month(4) >= 3  →  FY 2026-27
+//      today = 15 Jan 2026 →  month(0) < 3   →  FY 2025-26
+// Default month = last completed month (previous calendar month)
+// e.g. today = 2 May 2026  →  default month = April (4)
+//      today = 1 Apr 2026  →  default month = March (3)
+// ────────────────────────────────────────────────────────────
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+
+function currentFY() {
+    const now = new Date();
+    const m   = now.getMonth(); // 0=Jan … 11=Dec
+    const y   = now.getFullYear();
+    // April (m=3) onward = new FY starts
+    const fyStart = m >= 3 ? y : y - 1;
+    return `${fyStart}-${String(fyStart + 1).slice(2)}`; // e.g. "2026-27"
+}
+
+// Returns 1-based month number of the last completed month
+// (previous calendar month, not FY-relative)
+function defaultMonth() {
+    const now = new Date();
+    const m   = now.getMonth(); // 0=Jan
+    return m === 0 ? 12 : m;   // if Jan, go back to Dec; else prev month
+}
+
+// All months that belong to a given FY string (e.g. "2026-27")
+// FY 2026-27 = Apr 2026 … Mar 2027 → months 4,5,6,7,8,9,10,11,12,1,2,3
+function fyMonths() {
+    return [4,5,6,7,8,9,10,11,12,1,2,3]; // 1-based, Apr→Mar
+}
+
+function buildFYSelectors() {
+    const cur     = currentFY();
+    const curYear = parseInt(cur.split('-')[0]);
+    const opts    = [];
+    for (let y = curYear + 1; y >= curYear - 4; y--) {
+        const fy  = `${y}-${String(y+1).slice(2)}`;
+        opts.push(`<option value="${fy}" ${fy===cur?'selected':''}>${fy}</option>`);
+    }
+    const allFY = '<option value="">All FY</option>' + opts.join('');
+    document.getElementById('filterFY').innerHTML = allFY;
+    document.getElementById('em_fy').innerHTML    = opts.join('');
+    document.getElementById('filterFY').value     = cur;
+
+    buildMonthSelector(cur);
+}
+
+function buildMonthSelector(fy) {
+    const defM  = defaultMonth();
+    // Build month options in FY order (Apr first)
+    const months = fyMonths();
+    const opts   = months.map(m =>
+        `<option value="${m}" ${m===defM?'selected':''}>${MONTH_NAMES[m-1]}</option>`
+    ).join('');
+    const allOpt = '<option value="">All Months</option>' + opts;
+    document.getElementById('filterMonth').innerHTML = allOpt;
+    document.getElementById('em_month').innerHTML    = opts;
+    document.getElementById('filterMonth').value     = String(defM);
+    document.getElementById('em_month').value        = String(defM);
+}
+
+// ────────────────────────────────────────────────────────────
+// GSTR Types
+// ────────────────────────────────────────────────────────────
+const GSTR_TYPES = [
+    { id:'GSTR-1 (Regular Monthly)',       label:'GSTR-1',   desc:'Regular – Monthly' },
+    { id:'GSTR-3B (Regular Monthly)',      label:'GSTR-3B',  desc:'Regular – Monthly' },
+    { id:'GSTR-1 (QRMP Quarterly)',        label:'GSTR-1',   desc:'QRMP – Quarterly' },
+    { id:'GSTR-3B (QRMP Quarterly)',       label:'GSTR-3B',  desc:'QRMP – Quarterly' },
+    { id:'CMP-08 (Composition Quarterly)', label:'CMP-08',   desc:'Composition – Quarterly' },
+    { id:'GSTR-4 (Composition Annual)',    label:'GSTR-4',   desc:'Composition – Annual' },
+    { id:'GSTR-9 (Annual)',                label:'GSTR-9',   desc:'Annual Returns' },
+    { id:'GSTR-9C (Annual)',               label:'GSTR-9C',  desc:'Annual – Reconciliation' },
+];
+const STATUS_OPTIONS = ['Pending','Pending from Client','Under Review','Filed','Overdue'];
+
+function buildGSTRCheckboxGrid() {
+    document.getElementById('gstrCheckboxGrid').innerHTML = GSTR_TYPES.map(g => `
+        <div class="gstr-row" id="gstrrow_${safeId(g.id)}">
+            <div class="gstr-row-top">
+                <input type="checkbox" id="gstrc_${safeId(g.id)}"
+                    onchange="toggleGSTRRow('${g.id.replace(/'/g,"\\'")}', this.checked)">
+                <div>
+                    <div class="gstr-row-label">${g.label}</div>
+                    <div class="gstr-row-desc">${g.desc}</div>
+                </div>
+            </div>
+            <select class="gstr-status-select" id="gstrs_${safeId(g.id)}">
+                ${STATUS_OPTIONS.map(s=>`<option value="${s}">${s}</option>`).join('')}
+            </select>
+        </div>
+    `).join('');
+}
+
+function safeId(str) { return str.replace(/[^a-zA-Z0-9]/g,'_'); }
+
+function toggleGSTRRow(gstrId, checked) {
+    const row = document.getElementById(`gstrrow_${safeId(gstrId)}`);
+    if (row) row.classList.toggle('checked', checked);
+}
+
+// ────────────────────────────────────────────────────────────
+// State
+// ────────────────────────────────────────────────────────────
+let allGSTClients    = [];
+let firmData         = {};
+let activeStatusFilter = '';
+
+// ────────────────────────────────────────────────────────────
+// Boot
+// ────────────────────────────────────────────────────────────
+(async () => {
+    const profile = await initLayout();
+    if (!profile) return;
+    renderSidebar('gst-clients');
+    setActiveNav && setActiveNav();
+
+    const { data: firm } = await _supabase.from('firm_details').select('*').single();
+    if (firm) { firmData = firm; document.getElementById('firmNameHeader').textContent = firm.firm_name; }
+
+    buildFYSelectors();
+    buildGSTRCheckboxGrid();
+    await loadGSTClients();
+})();
+
+// ────────────────────────────────────────────────────────────
+// Load
+// ────────────────────────────────────────────────────────────
+async function loadGSTClients() {
+    // 1. GST parent services
+    const { data: parents } = await _supabase.from('services').select('id').eq('is_parent', true).ilike('name', '%gst%');
+    const parentIds = (parents||[]).map(p=>p.id);
+
+    let subIds = [];
+    if (parentIds.length) {
+        const { data: subs } = await _supabase.from('services').select('id').eq('is_parent',false).in('parent_id',parentIds);
+        subIds = (subs||[]).map(s=>s.id);
+    }
+    const { data: named } = await _supabase.from('services').select('id').eq('is_parent',false).ilike('name','%gst%');
+    const allSvcIds = [...new Set([...subIds, ...(named||[]).map(s=>s.id)])];
+
+    // 2. clients with GST service
+    let clientIds = [];
+    if (allSvcIds.length) {
+        const { data: cs } = await _supabase.from('client_services').select('client_id').in('service_id', allSvcIds);
+        clientIds = [...new Set((cs||[]).map(r=>r.client_id))];
+    }
+
+    // 3. also include any who already have gst_clients records
+    const { data: existing } = await _supabase.from('gst_clients').select('client_id');
+    clientIds = [...new Set([...clientIds, ...(existing||[]).map(r=>r.client_id)])];
+
+    if (!clientIds.length) {
+        allGSTClients = []; renderStats([]); renderTable([]); return;
+    }
+
+    // 4. parallel fetch
+    const [{ data: clients }, { data: creds }] = await Promise.all([
+        _supabase.from('clients').select('id,name,pan_no,contact_no,email_id,date_of_birth,assessee_type,is_active,gstin').in('id',clientIds).eq('is_active',true).order('name'),
+        _supabase.from('gst_clients').select('*').in('client_id',clientIds)
+    ]);
+
+    // Map creds by client_id
+    const credsMap = {};
+    (creds||[]).forEach(c => { credsMap[c.client_id] = credsMap[c.client_id] || []; credsMap[c.client_id].push(c); });
+
+    // 5. Merge — pick the record matching current FY/month, else most recent
+    const curFY = currentFY(); const curM = defaultMonth();
+    allGSTClients = (clients||[]).map(c => {
+        const recs   = credsMap[c.id] || [];
+        // prefer: fy == curFY && month == curM, else fy == curFY, else first
+        const cred   = recs.find(r=>r.fy===curFY && r.month===curM) || recs.find(r=>r.fy===curFY) || recs[0] || {};
+        const gtypes = cred.gstr_types || [];
+        const effSt  = computeOverallStatus(gtypes, cred.status);
+        return {
+            client_id:    c.id,
+            _gstId:       cred.id || null,
+            name:         c.name,
+            pan_no:       c.pan_no,
+            gstin:        cred.gstin || c.gstin || '',
+            contact_no:   c.contact_no,
+            email_id:     c.email_id,
+            assessee_type:c.assessee_type,
+            fy:           cred.fy   || curFY,
+            month:        cred.month|| curM,
+            gstr_types:   gtypes,
+            gst_password: cred.gst_password || null,
+            _effectiveStatus: effSt
+        };
+    });
+
+    renderStats(allGSTClients);
+    applyFilters();
+}
+
+function computeOverallStatus(gtypes, fallback) {
+    if (!gtypes.length) return fallback || 'Pending';
+    if (gtypes.every(t=>t.status==='Filed'))                    return 'Filed';
+    if (gtypes.some(t=>t.status==='Overdue'))                   return 'Overdue';
+    if (gtypes.some(t=>t.status==='Pending from Client'))       return 'Pending from Client';
+    if (gtypes.some(t=>t.status==='Under Review'))              return 'Under Review';
+    return 'Pending';
+}
+
+// ────────────────────────────────────────────────────────────
+// Stats
+// ────────────────────────────────────────────────────────────
+function renderStats(clients) {
+    const c={filed:0,pending:0,review:0,pfc:0,overdue:0};
+    clients.forEach(cl=>{
+        const s=cl._effectiveStatus;
+        if(s==='Filed') c.filed++;
+        else if(s==='Pending') c.pending++;
+        else if(s==='Under Review') c.review++;
+        else if(s==='Pending from Client') c.pfc++;
+        else if(s==='Overdue') c.overdue++;
+    });
+    document.getElementById('st_total').textContent   = clients.length;
+    document.getElementById('st_filed').textContent   = c.filed;
+    document.getElementById('st_pending').textContent = c.pending;
+    document.getElementById('st_review').textContent  = c.review;
+    document.getElementById('st_pfc').textContent     = c.pfc;
+    document.getElementById('st_overdue').textContent = c.overdue;
+}
+
+// ────────────────────────────────────────────────────────────
+// Filters
+// ────────────────────────────────────────────────────────────
+function setStatusFilter(val) {
+    activeStatusFilter = val;
+    document.getElementById('filterStatus').value = val;
+    applyFilters();
+}
+
+function clearFilters() {
+    activeStatusFilter = '';
+    document.getElementById('searchInput').value    = '';
+    document.getElementById('filterStatus').value   = '';
+    document.getElementById('filterGSTRType').value = '';
+    document.getElementById('filterFY').value       = currentFY();
+    document.getElementById('filterMonth').value    = String(defaultMonth());
+    applyFilters();
+}
+
+function applyFilters() {
+    const q    = document.getElementById('searchInput').value.toLowerCase();
+    const st   = document.getElementById('filterStatus').value || activeStatusFilter;
+    const gstr = document.getElementById('filterGSTRType').value;
+    const fy   = document.getElementById('filterFY').value;
+    const mon  = document.getElementById('filterMonth').value; // '' or '1'–'12'
+
+    const filtered = allGSTClients.filter(c => {
+        if (st   && c._effectiveStatus !== st)               return false;
+        if (gstr && !c.gstr_types.some(t=>t.type===gstr))   return false;
+        if (fy   && c.fy   && c.fy   !== fy)                return false;
+        if (mon  && c.month && String(c.month) !== mon)      return false;
+        if (q    && !c.name.toLowerCase().includes(q)
+                 && !(c.gstin||'').toLowerCase().includes(q)
+                 && !(c.pan_no||'').toLowerCase().includes(q)) return false;
+        return true;
+    });
+    renderTable(filtered);
+}
+
+// ────────────────────────────────────────────────────────────
+// Table
+// ────────────────────────────────────────────────────────────
+const STATUS_CLASS = {'Filed':'s-filed','Pending':'s-pending','Under Review':'s-review','Pending from Client':'s-pfc','Overdue':'s-overdue'};
+const STATUS_ICON  = {'Filed':'fa-check-circle','Pending':'fa-clock','Under Review':'fa-search','Pending from Client':'fa-user-clock','Overdue':'fa-exclamation-circle'};
+
+function renderTable(clients) {
+    const body = document.getElementById('gstBody');
+    if (!clients.length) {
+        body.innerHTML='<tr><td colspan="8" style="text-align:center;padding:40px;color:#9ca3af">No clients found for selected filters.</td></tr>';
+        return;
+    }
+    body.innerHTML = clients.map((c,i) => {
+        const st    = c._effectiveStatus;
+        const stCls = STATUS_CLASS[st]||'s-pending';
+        const stIco = STATUS_ICON[st] ||'fa-clock';
+        const gstin = c.gstin || c.pan_no || '—';
+        const monLbl= c.month ? MONTH_NAMES[c.month-1] : '—';
+        const gstrTags = c.gstr_types.length
+            ? c.gstr_types.map(t=>{
+                const tCls = STATUS_CLASS[t.status]||'s-pending';
+                const gDef = GSTR_TYPES.find(g=>g.id===t.type);
+                const lbl  = gDef ? gDef.label : t.type;
+                return `<span class="gstr-tag ${tCls}" title="${t.type} — ${t.status}">${lbl}</span>`;
+              }).join('')
+            : '<span style="color:#9ca3af;font-size:12px">—</span>';
+
+        const safeC = JSON.stringify(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        return `<tr style="${st==='Overdue'?'background:#fff8f8':''}">
+            <td style="color:#9ca3af">${i+1}</td>
+            <td><strong>${c.name}</strong><div style="font-size:11px;color:#9ca3af">${c.email_id||''}</div></td>
+            <td>
+                <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px">${gstin}</code>
+                <div style="font-size:11px;color:#6b7280;margin-top:2px">${c.assessee_type||'—'}</div>
+            </td>
+            <td style="font-size:12px">${c.contact_no||'—'}</td>
+            <td><span style="font-weight:700;color:#059669;font-size:13px">${c.fy||'—'}</span></td>
+            <td><span style="font-weight:600;color:#374151;font-size:12px">${monLbl}</span></td>
+            <td style="max-width:200px">
+                <div style="display:flex;flex-wrap:wrap;gap:2px">${gstrTags}</div>
+                <div style="margin-top:4px">
+                    <span class="status-pill ${stCls}" style="font-size:10px;padding:2px 8px">
+                        <i class="fas ${stIco}" style="font-size:9px"></i> ${st}
+                    </span>
+                </div>
+            </td>
+            <td>
+                <div style="display:flex;gap:5px;flex-wrap:wrap">
+                    <button class="action-btn" onclick='openEditModal(${safeC})' title="Edit GST Details"><i class="fas fa-edit"></i></button>
+                    <button class="action-btn green" onclick="loginGSTPortal('${gstin}',${c.client_id})" title="Login to GST Portal"><i class="fas fa-sign-in-alt"></i></button>
+                    <button class="action-btn purple" onclick="openDocsModal(${c.client_id},'${c.name.replace(/'/g,"\\'")}','${c.contact_no||''}')" title="Documents"><i class="fas fa-folder-open"></i></button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+// ────────────────────────────────────────────────────────────
+// Edit modal
+// ────────────────────────────────────────────────────────────
+function openEditModal(c) {
+    document.getElementById('em_id').value       = c._gstId || '';
+    document.getElementById('em_clientId').value = c.client_id;
+    document.getElementById('em_clientName').textContent = c.name;
+    document.getElementById('em_gstin').value    = c.gstin || '';
+    document.getElementById('em_password').value = '';
+    document.getElementById('em_fy').value       = c.fy    || currentFY();
+    document.getElementById('em_month').value    = c.month || defaultMonth();
+
+    // Reset all checkboxes
+    GSTR_TYPES.forEach(g => {
+        const cb  = document.getElementById(`gstrc_${safeId(g.id)}`);
+        const sel = document.getElementById(`gstrs_${safeId(g.id)}`);
+        const row = document.getElementById(`gstrrow_${safeId(g.id)}`);
+        if (cb)  cb.checked = false;
+        if (sel) sel.value  = 'Pending';
+        if (row) row.classList.remove('checked');
+    });
+
+    // Apply saved
+    (c.gstr_types||[]).forEach(t => {
+        const cb  = document.getElementById(`gstrc_${safeId(t.type)}`);
+        const sel = document.getElementById(`gstrs_${safeId(t.type)}`);
+        const row = document.getElementById(`gstrrow_${safeId(t.type)}`);
+        if (cb)  { cb.checked = true; }
+        if (sel) { sel.value  = t.status || 'Pending'; }
+        if (row) { row.classList.add('checked'); }
+    });
+    openModal('editModal');
+}
+
+async function saveGSTClient() {
+    const gstId    = document.getElementById('em_id').value;
+    const clientId = parseInt(document.getElementById('em_clientId').value);
+    const gstin    = document.getElementById('em_gstin').value.trim().toUpperCase();
+    const pwdRaw   = document.getElementById('em_password').value;
+    const fy       = document.getElementById('em_fy').value;
+    const month    = parseInt(document.getElementById('em_month').value);
+
+    if (!gstin) { showToast('GSTIN / User ID is required.', 'error'); return; }
+
+    const gstrTypes = [];
+    GSTR_TYPES.forEach(g => {
+        const cb  = document.getElementById(`gstrc_${safeId(g.id)}`);
+        const sel = document.getElementById(`gstrs_${safeId(g.id)}`);
+        if (cb && cb.checked) gstrTypes.push({ type:g.id, status: sel?sel.value:'Pending' });
+    });
+
+    const btn = document.getElementById('editSaveBtn');
+    btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        let encPwd = null;
+        if (pwdRaw) encPwd = await encryptText(pwdRaw);
+
+        const overallStatus = computeOverallStatus(gstrTypes, 'Pending');
+
+        const payload = {
+            client_id:  clientId,
+            gstin,
+            fy,
+            month,
+            gstr_types: gstrTypes,
+            status:     overallStatus,
+            updated_at: new Date().toISOString()
+        };
+        if (encPwd) payload.gst_password = encPwd;
+
+        // update GSTIN on client record too
+        await _supabase.from('clients').update({ gstin }).eq('id', clientId);
+
+        const gstIdNum = gstId ? parseInt(gstId) : NaN;
+        if (!isNaN(gstIdNum) && gstIdNum > 0) {
+            const { error } = await _supabase.from('gst_clients').update(payload).eq('id', gstIdNum);
+            if (error) throw new Error(error.message);
+        } else {
+            // check if record exists for same client+fy+month
+            const { data: ex } = await _supabase.from('gst_clients').select('id').eq('client_id',clientId).eq('fy',fy).eq('month',month).maybeSingle();
+            if (ex) {
+                const { error } = await _supabase.from('gst_clients').update(payload).eq('id',ex.id);
+                if (error) throw new Error(error.message);
+            } else {
+                const { error } = await _supabase.from('gst_clients').insert({...payload, created_at: new Date().toISOString()});
+                if (error) throw new Error(error.message);
+            }
+        }
+
+        showToast('GST details saved!', 'success');
+        closeModal('editModal');
+        await loadGSTClients();
+    } catch(err) {
+        showToast(err.message, 'error');
+    } finally {
+        btn.disabled=false; btn.innerHTML='<i class="fas fa-save"></i> Save';
+    }
+}
+
+// ────────────────────────────────────────────────────────────
+// Login to GST Portal
+// ────────────────────────────────────────────────────────────
+async function loginGSTPortal(gstin, clientId) {
+    const { data: cred } = await _supabase.from('gst_clients').select('gst_password,gstin').eq('client_id',clientId).maybeSingle();
+    const useGstin = (cred?.gstin || gstin || '').toUpperCase();
+    let pwd = '';
+    if (cred?.gst_password) pwd = await decryptText(cred.gst_password) || '';
+
+    const clip = `User ID (GSTIN): ${useGstin}\nPassword: ${pwd||'(not stored)'}`;
+    try { await navigator.clipboard.writeText(clip); } catch(_) {}
+
+    window.open('https://www.gst.gov.in/', '_blank');
+
+    document.getElementById('copyPopupTitle').textContent = 'Credentials Copied!';
+    document.getElementById('copyPopupMsg').textContent   = pwd
+        ? 'GSTIN & Password copied to clipboard. Paste on the GST portal login page.'
+        : `Portal opened. No password stored — fill manually. (GSTIN: ${useGstin})`;
+    document.getElementById('copyPopup').style.display = 'flex';
+}
+function closeCopyPopup() { document.getElementById('copyPopup').style.display='none'; }
+
+// ────────────────────────────────────────────────────────────
+// Documents
+// ────────────────────────────────────────────────────────────
+let docsCache = [];
+
+async function openDocsModal(clientId, clientName, mobile) {
+    document.getElementById('dm_clientName').textContent = clientName;
+    document.getElementById('dm_clientName_raw').value   = clientName;
+    document.getElementById('dm_gstClientId').value      = clientId;
+    document.getElementById('dm_clientMobile').value     = mobile;
+    document.getElementById('dm_newDoc').value           = '';
+    openModal('docsModal');
+    await loadDocs(clientId);
+}
+
+async function loadDocs(clientId) {
+    document.getElementById('docList').innerHTML='<div style="text-align:center;padding:20px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i></div>';
+    const { data } = await _supabase.from('gst_documents').select('*').eq('client_id',parseInt(clientId)).order('created_at',{ascending:true});
+    docsCache = data||[];
+    renderDocList();
+}
+
+function renderDocList() {
+    const list = document.getElementById('docList');
+    if (!docsCache.length) { list.innerHTML='<p style="text-align:center;color:#9ca3af;font-size:13px;padding:20px">No documents added yet.</p>'; return; }
+    list.innerHTML = docsCache.map(doc=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid ${doc.is_received?'#bbf7d0':'#e5e7eb'};border-radius:8px;margin-bottom:8px;background:${doc.is_received?'#f0fdf4':'#fff'}">
+            <input type="checkbox" ${doc.is_received?'checked':''} style="accent-color:#059669;width:16px;height:16px;flex-shrink:0" onchange="toggleDocReceived(${doc.id},this.checked)">
+            <span style="flex:1;font-size:13px;color:${doc.is_received?'#166534':'#1f2937'};${doc.is_received?'text-decoration:line-through':''}">
+                ${doc.document_name}
+            </span>
+            ${doc.is_received
+                ? '<span style="font-size:11px;color:#16a34a;font-weight:600;white-space:nowrap"><i class="fas fa-check"></i> Received</span>'
+                : '<span style="font-size:11px;color:#d97706;font-weight:600;white-space:nowrap"><i class="fas fa-clock"></i> Pending</span>'}
+            <button onclick="deleteDoc(${doc.id})" style="background:none;border:none;cursor:pointer;color:#9ca3af;padding:2px 4px;font-size:13px" title="Remove"><i class="fas fa-times"></i></button>
+        </div>`).join('');
+}
+
+async function addDoc() {
+    const name     = document.getElementById('dm_newDoc').value.trim();
+    const clientId = parseInt(document.getElementById('dm_gstClientId').value);
+    if (!name) { showToast('Enter document name.','error'); return; }
+    const { data, error } = await _supabase.from('gst_documents').insert({ client_id:clientId, document_name:name, is_received:false, created_at:new Date().toISOString() }).select('*').single();
+    if (error) { showToast(error.message,'error'); return; }
+    document.getElementById('dm_newDoc').value='';
+    docsCache.push(data); renderDocList();
+}
+
+async function toggleDocReceived(docId, received) {
+    const { error } = await _supabase.from('gst_documents').update({is_received:received}).eq('id',docId);
+    if (error) { showToast(error.message,'error'); return; }
+    const doc = docsCache.find(d=>d.id===docId);
+    if (doc) doc.is_received = received;
+    renderDocList();
+}
+
+async function deleteDoc(docId) {
+    const { error } = await _supabase.from('gst_documents').delete().eq('id',docId);
+    if (error) { showToast(error.message,'error'); return; }
+    docsCache = docsCache.filter(d=>d.id!==docId); renderDocList();
+}
+
+function sendWhatsApp() {
+    const mobile     = document.getElementById('dm_clientMobile').value.replace(/\D/g,'');
+    const clientName = document.getElementById('dm_clientName_raw').value;
+    const pending    = docsCache.filter(d=>!d.is_received);
+    if (!mobile) { showToast('No mobile number for this client.','error'); return; }
+    if (!pending.length) { showToast('All documents already received!','info'); return; }
+    const docList  = pending.map((d,i)=>`${i+1}. ${d.document_name}`).join('\n');
+    const firmName = firmData.firm_name||'Our Office';
+    const msg      = `Dear ${clientName},\n\nKindly share the following documents for GST filing:\n\n${docList}\n\nThank you,\n${firmName}`;
+    window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+// ────────────────────────────────────────────────────────────
+// Utility
+// ────────────────────────────────────────────────────────────
+function togglePwd(inputId, btn) {
+    const el = document.getElementById(inputId);
+    const hidden = el.type==='password';
+    el.type = hidden ? 'text' : 'password';
+    btn.querySelector('i').className = hidden ? 'fas fa-eye-slash' : 'fas fa-eye';
+}
+</script>
+</body>
+</html>
