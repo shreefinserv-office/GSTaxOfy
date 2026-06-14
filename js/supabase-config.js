@@ -4,8 +4,15 @@
 // Supabase Dashboard → Project Settings → API
 // ─────────────────────────────────────────────
 
-const SUPABASE_URL     = 'https://ghpgwnygnvawikhjybvq.supabase.co';
+const SUPABASE_URL      = 'https://ghpgwnygnvawikhjybvq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdocGd3bnlnbnZhd2lraGp5YnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTE1MjksImV4cCI6MjA5NjcyNzUyOX0.Jz7q4j8uM3CPQsAQrDLusmC68tgDOmhfaOZVv49OIHw';
+
+// ─────────────────────────────────────────────
+// SERVICE ROLE KEY — used ONLY for admin user creation.
+// Get this from: Supabase Dashboard → Project Settings → API → service_role key
+// This is safe for an internal office tool (same as storing anon key).
+// ─────────────────────────────────────────────
+const SUPABASE_SERVICE_KEY = 'REPLACE_WITH_YOUR_SERVICE_ROLE_KEY';
 
 // ─────────────────────────────────────────────
 // BASE PATH — for GitHub Pages hosting
@@ -134,4 +141,34 @@ async function confirmLogout() {
     await logAudit('LOGOUT');
     await _supabase.auth.signOut();
     window.location.href = ROUTES.login();
+}
+
+// ─────────────────────────────────────────────
+// Admin user creation via Service Role key.
+// Uses Supabase Admin API to create auth user
+// with email_confirm:true so the user row exists
+// immediately in auth.users (no FK violation).
+// ─────────────────────────────────────────────
+async function adminCreateAuthUser(email, password) {
+    if (!SUPABASE_SERVICE_KEY || SUPABASE_SERVICE_KEY === 'REPLACE_WITH_YOUR_SERVICE_ROLE_KEY') {
+        throw new Error('Service Role Key not configured. Go to Supabase → Project Settings → API → service_role, and paste it in js/supabase-config.js as SUPABASE_SERVICE_KEY.');
+    }
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: {
+            'Content-Type':  'application/json',
+            'apikey':         SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+        },
+        body: JSON.stringify({
+            email,
+            password,
+            email_confirm: true   // ← instantly confirmed, no email needed
+        })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data.msg || data.message || `Admin API error: ${res.status}`);
+    }
+    return data; // contains data.id = new auth user UUID
 }
