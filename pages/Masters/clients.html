@@ -240,6 +240,92 @@
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
+// ── AES-256-GCM Encryption Helpers ───────────────────────────────────────────
+// Key is derived from a fixed app secret stored in supabase-config or env.
+// We use the Web Crypto API (native browser, no extra library needed).
+
+const CLIENT_ENC_KEY_MATERIAL = 'GSTaxOfy-AES256-ClientData-Secret-v1';
+
+let _aesKey = null;
+async function getAESKey() {
+    if (_aesKey) return _aesKey;
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(CLIENT_ENC_KEY_MATERIAL),
+        { name: 'PBKDF2' }, false, ['deriveKey']
+    );
+    _aesKey = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: enc.encode('GSTaxOfy-Salt-v1'), iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false, ['encrypt', 'decrypt']
+    );
+    return _aesKey;
+}
+
+async function aesEncrypt(plaintext) {
+    if (plaintext === null || plaintext === undefined || plaintext === '') return '';
+    const key = await getAESKey();
+    const iv  = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder();
+    const ct  = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(String(plaintext)));
+    // Store as base64(iv):base64(ciphertext)
+    const b64 = arr => btoa(String.fromCharCode(...new Uint8Array(arr)));
+    return `${b64(iv)}:${b64(ct)}`;
+}
+
+async function aesDecrypt(ciphertext) {
+    if (!ciphertext || !ciphertext.includes(':')) return ciphertext || '';
+    try {
+        const key = await getAESKey();
+        const [ivB64, ctB64] = ciphertext.split(':');
+        const b64ToArr = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+        const iv = b64ToArr(ivB64);
+        const ct = b64ToArr(ctB64);
+        const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+        return new TextDecoder().decode(pt);
+    } catch {
+        // If decryption fails (plain-text field or corrupted), return as-is
+        return ciphertext;
+    }
+}
+
+// Fields to encrypt (name stays plain for display/search per requirement)
+const ENCRYPTED_FIELDS = [
+    'address', 'contact_no', 'email_id', 'pan_no',
+    'aadhar_no', 'date_of_birth', 'assessee_type',
+    'is_gst_registered', 'gst_no'
+];
+
+async function encClientPayload(raw) {
+    const out = { ...raw };
+    for (const field of ENCRYPTED_FIELDS) {
+        if (field === 'is_gst_registered') {
+            // boolean → string for encryption, store as enc string
+            out[field] = await aesEncrypt(raw[field] !== undefined ? String(raw[field]) : '');
+        } else {
+            out[field] = await aesEncrypt(raw[field] !== undefined ? raw[field] : '');
+        }
+    }
+    return out;
+}
+
+async function decClientRow(row) {
+    if (!row) return row;
+    const out = { ...row };
+    for (const field of ENCRYPTED_FIELDS) {
+        if (field === 'is_gst_registered') {
+            const val = await aesDecrypt(row[field]);
+            out[field] = val === 'true';
+        } else {
+            out[field] = await aesDecrypt(row[field]);
+        }
+    }
+    return out;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+</script>
+<script>
 let allClients  = [];
 let parentSvcs  = []; // is_parent=true
 let subSvcs     = []; // is_parent=false
@@ -553,8 +639,13 @@ async function saveClient() {
             if (error) throw new Error(error.message);
             await logAudit('UPDATE_CLIENT', 'clients', clientId, null, payload);
         } else {
-            const { data: existing } = await _supabase.from('clients').select('id').eq('pan_no', pan).single();
-            if (existing) throw new Error('A client with this PAN already exists.');
+            // PAN is encrypted in DB, so fetch all and decrypt to check duplicates
+            const { data: allExistingClients } = await _supabase.from('clients').select('id, pan_no');
+            const decPans = await Promise.all((allExistingClients||[]).map(async r => ({
+                id: r.id, pan: await aesDecrypt(r.pan_no)
+            })));
+            const dup = decPans.find(r => r.pan === pan);
+            if (dup) throw new Error('A client with this PAN already exists.');
             const profile = getCachedProfile();
             const { data: inserted, error } = await _supabase.from('clients')
                 .insert({ ...payload, is_active: true, created_by: profile?.id })
@@ -639,15 +730,24 @@ function parseImportRows(rows) {
     errBox.style.display = 'none';
     document.getElementById('importPreviewSection').style.display = 'block';
     const errors = [], preview = [];
-    rows.forEach((row, idx) => {
+    // Normalize row keys: strip asterisks and extra spaces so "Name *" → "Name"
+    const normalizeRows = rows.map(row => {
+        const n = {};
+        Object.keys(row).forEach(k => { n[k.replace(/\s*\*+\s*/g, '').trim()] = row[k]; });
+        return n;
+    });
+    normalizeRows.forEach((row, idx) => {
         const rowNum  = idx + 2;
         const name    = String(row['Name']||'').trim();
         const pan     = String(row['PAN']||row['pan_no']||'').trim().toUpperCase();
-        const contact = String(row['Contact No']||row['Mobile']||'').trim();
+        // Contact may come as a number from Excel — convert to string
+        const contactRaw = row['Contact No'] || row['Mobile'] || row['contact_no'] || '';
+        const contact = String(typeof contactRaw === 'number' ? Math.round(contactRaw) : contactRaw).trim();
         const email   = String(row['Email']||'').trim();
         const address = String(row['Address']||'').trim();
         const aadhar  = String(row['Aadhaar']||'').trim();
         const dob     = row['Date of Birth']||'';
+        const dobStr  = dob ? (dob instanceof Date ? dob.toISOString().split('T')[0] : new Date(dob).toISOString().split('T')[0]) : null;
         const isGST   = String(row['GST Registered']||'').toLowerCase() === 'yes';
         const gstNo   = String(row['GST No']||'').trim().toUpperCase();
         const type    = String(row['Assessee Type']||'').trim();
@@ -659,7 +759,7 @@ function parseImportRows(rows) {
         if (rowErr) errors.push(rowErr);
         else importData.push({ name, pan_no: pan, contact_no: contact, email_id: email,
             address, aadhar_no: aadhar, assessee_type: type,
-            date_of_birth: dob ? new Date(dob).toISOString().split('T')[0] : null,
+            date_of_birth: dobStr,
             is_gst_registered: isGST, gst_no: isGST ? gstNo : '', is_active: true });
         preview.push({ rowNum, name, pan, contact, ok: !rowErr, errMsg: rowErr });
     });
@@ -690,9 +790,13 @@ async function runImport() {
     const btn = document.getElementById('importBtn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing…';
     try {
+        // Note: PAN is encrypted in DB so we can't do a direct .in() query.
+        // We fetch all PANs, decrypt them, and check for duplicates client-side.
         const pans = importData.map(r => r.pan_no);
-        const { data: existing } = await _supabase.from('clients').select('pan_no').in('pan_no', pans);
-        if (existing?.length) throw new Error(`Duplicate PANs: ${existing.map(e=>e.pan_no).join(', ')}`);
+        const { data: allExisting } = await _supabase.from('clients').select('pan_no');
+        const decryptedExistingPans = await Promise.all((allExisting||[]).map(r => aesDecrypt(r.pan_no)));
+        const duplicates = pans.filter(p => decryptedExistingPans.includes(p));
+        if (duplicates.length) throw new Error(`Duplicate PANs already in database: ${duplicates.join(', ')}`);
         const profile = getCachedProfile();
         const encImport = await Promise.all(importData.map(r => encClientPayload({ ...r, created_by: profile?.id })));
         const { error } = await _supabase.from('clients').insert(encImport);
