@@ -17,7 +17,7 @@ async function triggerExtensionLogin(action, credentials) {
         }
     });
 }
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdocGd3bnlnbnZhd2lraGp5YnZxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTE1MTUyOSwiZXhwIjoyMDk2NzI3NTI5fQ.zjkQaZRAVPFKcair60YOne2FZN9Sa7DpyFmbeJ1TSXs';
+const SUPABASE_SERVICE_KEY = 'Fill it Later';
 const BASE = '/GSTaxOfy';
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
