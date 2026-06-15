@@ -291,7 +291,7 @@ async function aesDecrypt(ciphertext) {
 }
 
 // Fields to encrypt (name stays plain for display/search per requirement)
-// NOTE: date_of_birth is a native DATE column in Supabase — must NOT be encrypted
+// NOTE: date_of_birth is a native DATE column — must NOT be encrypted
 const ENCRYPTED_FIELDS = [
     'address', 'contact_no', 'email_id', 'pan_no',
     'aadhar_no', 'assessee_type',
@@ -308,7 +308,7 @@ async function encClientPayload(raw) {
             out[field] = await aesEncrypt(raw[field] !== undefined ? raw[field] : '');
         }
     }
-    // date_of_birth is a native DATE column — store as plain date string or null
+    // date_of_birth is a native DATE column — store as plain YYYY-MM-DD string or null, never encrypt
     out['date_of_birth'] = (raw['date_of_birth'] === null || raw['date_of_birth'] === undefined || raw['date_of_birth'] === '')
         ? null
         : raw['date_of_birth'];
@@ -755,7 +755,7 @@ function parseImportRows(rows) {
         const aadhar  = String(row['Aadhaar']||'').trim();
         const dob     = row['Date of Birth']||'';
         const dobDate = dob ? (dob instanceof Date ? dob : new Date(dob)) : null;
-        const dobStr  = (dobDate && !isNaN(dobDate.getTime())) ? dobDate.toISOString().split("T")[0] : null;
+        const dobStr  = (dobDate && !isNaN(dobDate.getTime())) ? dobDate.toISOString().split('T')[0] : null;
         const isGST   = String(row['GST Registered']||'').toLowerCase() === 'yes';
         const gstNo   = String(row['GST No']||'').trim().toUpperCase();
         const type    = String(row['Assessee Type']||'').trim();
