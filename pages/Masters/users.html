@@ -292,13 +292,10 @@ function getCheckedDepts(gridId) {
 async function loadUsers() {
     const { data, error } = await _supabase
         .from('user_profiles')
-        .select('id, username, full_name, phone, role, department, is_active, created_at')
+        .select('id, username, full_name, phone, email, role, department, is_active, created_at')
         .order('created_at', { ascending: false });
 
     if (error) { showToast('Failed to load users: ' + error.message, 'error'); return; }
-
-    // Get emails from auth — we store them in auth.users, not user_profiles
-    // We can get current user's email; for listing we just show username
     allUsers = data || [];
     renderTable(allUsers);
 }
@@ -314,8 +311,8 @@ function renderTable(users) {
             <td>${i + 1}</td>
             <td><strong>${u.full_name}</strong></td>
             <td><code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;font-size:12px">${u.username}</code></td>
-            <td><span class="text-muted">${u.id.substring(0,8)}…</span></td>
-            <td>${u.phone}</td>
+            <td style="font-size:12px;color:#6b7280">${u.email || '—'}</td>
+            <td>${u.phone || '—'}</td>
             <td><span class="badge role-${u.role}">${u.role.charAt(0).toUpperCase()+u.role.slice(1)}</span></td>
             <td style="max-width:180px">${(u.department||'').split(',').map(d=>d.trim()).filter(Boolean).map(d=>`<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;margin:1px">${d}</span>`).join('')||'—'}</td>
             <td><span class="badge ${u.is_active?'badge-green':'badge-red'}">${u.is_active?'Active':'Inactive'}</span></td>
@@ -359,27 +356,21 @@ async function createUser() {
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating…';
 
     try {
-        // 1. Create auth user using Supabase Admin API via anon key + signUp
-        // NOTE: In production use a Supabase Edge Function with service_role key.
-        // For now we use signUp which sends a confirmation email.
-        const { data: authData, error: authErr } = await _supabase.auth.signUp({
-            email,
-            password,
-            options: { emailRedirectTo: window.location.origin }
-        });
-        if (authErr) throw new Error(authErr.message);
-
-        const userId = authData.user.id;
+        // 1. Create auth user via Admin API (email_confirm:true → no confirmation email,
+        //    user row exists immediately in auth.users → no FK violation)
+        const authData = await adminCreateAuthUser(email, password);
+        const userId   = authData.id;
 
         // 2. Check username uniqueness
         const { data: existing } = await _supabase
-            .from('user_profiles').select('id').eq('username', username).single();
+            .from('user_profiles').select('id').eq('username', username).maybeSingle();
         if (existing) { throw new Error('Username already exists.'); }
 
-        // 3. Insert profile
+        // 3. Insert profile — auth.users row is guaranteed to exist now
         const profile = getCachedProfile();
         const { error: profErr } = await _supabase.from('user_profiles').insert({
             id: userId, username, full_name: fullName,
+            email,
             phone: mobile, address, role, department,
             is_active: true,
             created_by: profile?.id
@@ -387,7 +378,7 @@ async function createUser() {
         if (profErr) throw new Error(profErr.message);
 
         await logAudit('CREATE_USER', 'user_profiles', userId, null, { username, full_name: fullName, role });
-        showToast(`User "${fullName}" created! They'll receive a confirmation email.`, 'success');
+        showToast(`User "${fullName}" created successfully! They can log in immediately.`, 'success');
         closeModal('createModal');
         // Reset form
         ['c_fullName','c_email','c_mobile','c_username','c_address','c_password','c_confirm'].forEach(id => document.getElementById(id).value = '');
@@ -409,7 +400,7 @@ function openEdit(user) {
     document.getElementById('e_status').value = String(user.is_active);
     buildDeptCheckboxes('e_dept_grid', user.department || '');
     // email shown as hint
-    document.getElementById('e_email').value = '(linked to auth — cannot change here)';
+    document.getElementById('e_email').value    = user.email || '(not stored)';
     document.getElementById('e_email').disabled = true;
     openModal('editModal');
 }

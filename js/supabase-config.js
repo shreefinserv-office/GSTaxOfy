@@ -12,7 +12,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Get this from: Supabase Dashboard → Project Settings → API → service_role key
 // This is safe for an internal office tool (same as storing anon key).
 // ─────────────────────────────────────────────
-const SUPABASE_SERVICE_KEY = 'REPLACE_WITH_YOUR_SERVICE_ROLE_KEY';
+const SUPABASE_SERVICE_KEY = 'ghpgwnygnvawikhjybvq';
 
 // ─────────────────────────────────────────────
 // BASE PATH — for GitHub Pages hosting

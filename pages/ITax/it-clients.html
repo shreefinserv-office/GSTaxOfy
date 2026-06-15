@@ -110,7 +110,7 @@
                 <div class="it-banner-left">
                     <div class="it-banner-icon"><i class="fas fa-landmark"></i></div>
                     <div>
-                        <div class="it-banner-title">Income Tax e-Filing Portal</div>
+                        <div class="it-banner-title">Income Tax — Client Management</div>
                         <div class="it-banner-sub">File ITR, track refunds, respond to notices, and access all IT services for your clients.</div>
                     </div>
                 </div>
@@ -757,8 +757,10 @@ function closeAisPopup() {
 }
 
 // ── Login to IT Portal ────────────────────────────────────────
+// ── IT Portal Login — guided step-by-step popup ──────────────
+let _itLoginData = {};
+
 async function loginITPortal(pan, clientId) {
-    // Fetch stored credentials
     const { data: cred } = await _supabase
         .from('it_clients')
         .select('it_password, pan')
@@ -767,24 +769,100 @@ async function loginITPortal(pan, clientId) {
 
     const usePan = (cred?.pan || pan || '').toUpperCase();
     let pwd = '';
-    if (cred?.it_password) {
-        pwd = await decryptText(cred.it_password) || '';
+    if (cred?.it_password) pwd = await decryptText(cred.it_password) || '';
+
+    _itLoginData = { pan: usePan, pwd };
+
+    // Build popup if not exists
+    if (!document.getElementById('itLoginPopup')) {
+        const div = document.createElement('div');
+        div.id = 'itLoginPopup';
+        div.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center';
+        div.innerHTML = `
+        <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:420px;width:92%;box-shadow:0 24px 60px rgba(0,0,0,.35)">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+                <div style="width:44px;height:44px;background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <i class="fas fa-landmark" style="color:#fff;font-size:18px"></i>
+                </div>
+                <div>
+                    <div style="font-weight:700;font-size:15px;color:#1f2937">IT Portal Auto-Login Guide</div>
+                    <div style="font-size:12px;color:#6b7280">Follow steps below after portal opens</div>
+                </div>
+                <button onclick="closeITLoginPopup()" style="margin-left:auto;background:none;border:none;font-size:20px;cursor:pointer;color:#9ca3af;line-height:1">&times;</button>
+            </div>
+
+            <!-- Credentials box -->
+            <div style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:14px 16px;margin-bottom:18px">
+                <div style="font-size:11px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px"><i class="fas fa-key" style="margin-right:4px"></i>Credentials for this client</div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <span style="font-size:12px;color:#374151;font-weight:600">User ID (PAN):</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <code style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:3px 10px;font-size:13px;font-weight:700;color:#1e3a5f" id="itpop_pan"></code>
+                        <button onclick="copyITField('pan')" style="background:#2563eb;border:none;color:#fff;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:600">Copy</button>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                    <span style="font-size:12px;color:#374151;font-weight:600">Password:</span>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <code style="background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:3px 10px;font-size:13px;font-weight:700;color:#1e3a5f" id="itpop_pwd"></code>
+                        <button onclick="copyITField('pwd')" style="background:#2563eb;border:none;color:#fff;border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:600">Copy</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Steps -->
+            <div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:10px"><i class="fas fa-list-ol" style="margin-right:5px;color:#2563eb"></i>Steps on the portal:</div>
+            <div style="display:flex;flex-direction:column;gap:7px;margin-bottom:20px">
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="min-width:22px;height:22px;background:#2563eb;color:#fff;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">1</span>
+                    <span style="font-size:12px;color:#374151">Paste / type your <strong>User ID (PAN)</strong> in the field and click <strong>Continue</strong></span>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="min-width:22px;height:22px;background:#2563eb;color:#fff;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">2</span>
+                    <span style="font-size:12px;color:#374151">On next page, check the <strong>"Login using Password"</strong> checkbox</span>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                    <span style="min-width:22px;height:22px;background:#2563eb;color:#fff;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">3</span>
+                    <span style="font-size:12px;color:#374151">Paste / type the <strong>Password</strong> and click <strong>Continue</strong></span>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:10px">
+                <button onclick="openITPortalAndClose()" style="flex:1;background:linear-gradient(135deg,#1e3a5f,#2563eb);border:none;color:#fff;padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+                    <i class="fas fa-external-link-alt" style="margin-right:6px"></i>Open IT Portal
+                </button>
+                <button onclick="copyBothITCreds()" style="flex:1;background:#f3f4f6;border:1.5px solid #e5e7eb;color:#374151;padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+                    <i class="fas fa-copy" style="margin-right:6px"></i>Copy Both
+                </button>
+            </div>
+        </div>`;
+        document.body.appendChild(div);
     }
 
-    // Copy PAN + Password to clipboard as text so user can paste on portal
-    if (usePan || pwd) {
-        const clip = `User ID (PAN): ${usePan}\nPassword: ${pwd || '(not stored)'}`;
-        try { await navigator.clipboard.writeText(clip); } catch(_) {}
-    }
+    // Fill credentials
+    document.getElementById('itpop_pan').textContent = usePan || '(not stored)';
+    document.getElementById('itpop_pwd').textContent = pwd   || '(not stored)';
+    document.getElementById('itLoginPopup').style.display = 'flex';
+}
 
-    // Open the correct IT e-filing login URL
+function closeITLoginPopup() {
+    const el = document.getElementById('itLoginPopup');
+    if (el) el.style.display = 'none';
+}
+
+function openITPortalAndClose() {
     window.open('https://eportal.incometax.gov.in/iec/foservices/#/login', '_blank');
+}
 
-    if (pwd) {
-        showToast(`Credentials copied to clipboard! Paste User ID & Password on the portal.`, 'success');
-    } else {
-        showToast(`Portal opened. No password stored — fill in manually. (PAN: ${usePan})`, 'info');
-    }
+function copyITField(field) {
+    const val = field === 'pan' ? _itLoginData.pan : _itLoginData.pwd;
+    if (!val) { showToast('Nothing to copy.', 'error'); return; }
+    navigator.clipboard.writeText(val).then(() => showToast(`${field === 'pan' ? 'User ID' : 'Password'} copied!`, 'success'));
+}
+
+function copyBothITCreds() {
+    const text = `User ID (PAN): ${_itLoginData.pan || ''}\nPassword: ${_itLoginData.pwd || ''}`;
+    navigator.clipboard.writeText(text).then(() => showToast('Both credentials copied to clipboard!', 'success'));
 }
 
 // ── Documents modal ───────────────────────────────────────────
