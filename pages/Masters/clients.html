@@ -291,21 +291,27 @@ async function aesDecrypt(ciphertext) {
 }
 
 // Fields to encrypt (name stays plain for display/search per requirement)
-// Fields stored as TEXT in Supabase (can hold AES ciphertext)
-// date_of_birth and is_gst_registered are kept as plain values (DATE / BOOLEAN)
-// because Supabase validates their column types strictly.
-// All other PII fields are encrypted.
 const ENCRYPTED_FIELDS = [
     'address', 'contact_no', 'email_id', 'pan_no',
-    'aadhar_no', 'assessee_type', 'gst_no'
+    'aadhar_no', 'date_of_birth', 'assessee_type',
+    'is_gst_registered', 'gst_no'
 ];
-// These fields need type-casting back after decrypt (not encrypted, stored plain)
-// is_gst_registered → boolean, date_of_birth → date string — handled naturally by Supabase
 
 async function encClientPayload(raw) {
     const out = { ...raw };
     for (const field of ENCRYPTED_FIELDS) {
-        out[field] = await aesEncrypt(raw[field] !== undefined && raw[field] !== null ? raw[field] : '');
+        if (field === 'is_gst_registered') {
+            // boolean → string for encryption, store as enc string
+            out[field] = await aesEncrypt(raw[field] !== undefined ? String(raw[field]) : '');
+        } else if (field === 'date_of_birth') {
+            // date column: store null when empty, else encrypt the date string
+            const val = raw[field];
+            out[field] = (val === null || val === undefined || val === '')
+                ? null
+                : await aesEncrypt(val);
+        } else {
+            out[field] = await aesEncrypt(raw[field] !== undefined ? raw[field] : '');
+        }
     }
     return out;
 }
@@ -314,7 +320,12 @@ async function decClientRow(row) {
     if (!row) return row;
     const out = { ...row };
     for (const field of ENCRYPTED_FIELDS) {
-        out[field] = await aesDecrypt(row[field]);
+        if (field === 'is_gst_registered') {
+            const val = await aesDecrypt(row[field]);
+            out[field] = val === 'true';
+        } else {
+            out[field] = await aesDecrypt(row[field]);
+        }
     }
     return out;
 }
@@ -742,7 +753,8 @@ function parseImportRows(rows) {
         const address = String(row['Address']||'').trim();
         const aadhar  = String(row['Aadhaar']||'').trim();
         const dob     = row['Date of Birth']||'';
-        const dobStr  = dob ? (dob instanceof Date ? dob.toISOString().split('T')[0] : new Date(dob).toISOString().split('T')[0]) : null;
+        const dobDate = dob ? (dob instanceof Date ? dob : new Date(dob)) : null;
+        const dobStr  = (dobDate && !isNaN(dobDate.getTime())) ? dobDate.toISOString().split("T")[0] : null;
         const isGST   = String(row['GST Registered']||'').toLowerCase() === 'yes';
         const gstNo   = String(row['GST No']||'').trim().toUpperCase();
         const type    = String(row['Assessee Type']||'').trim();
