@@ -291,9 +291,10 @@ async function aesDecrypt(ciphertext) {
 }
 
 // Fields to encrypt (name stays plain for display/search per requirement)
+// NOTE: date_of_birth is a native DATE column — must NOT be encrypted
 const ENCRYPTED_FIELDS = [
     'address', 'contact_no', 'email_id', 'pan_no',
-    'aadhar_no', 'date_of_birth', 'assessee_type',
+    'aadhar_no', 'assessee_type',
     'is_gst_registered', 'gst_no'
 ];
 
@@ -303,16 +304,14 @@ async function encClientPayload(raw) {
         if (field === 'is_gst_registered') {
             // boolean → string for encryption, store as enc string
             out[field] = await aesEncrypt(raw[field] !== undefined ? String(raw[field]) : '');
-        } else if (field === 'date_of_birth') {
-            // date column: store null when empty, else encrypt the date string
-            const val = raw[field];
-            out[field] = (val === null || val === undefined || val === '')
-                ? null
-                : await aesEncrypt(val);
         } else {
             out[field] = await aesEncrypt(raw[field] !== undefined ? raw[field] : '');
         }
     }
+    // date_of_birth is a native DATE column — store as plain YYYY-MM-DD string or null, never encrypt
+    out['date_of_birth'] = (raw['date_of_birth'] === null || raw['date_of_birth'] === undefined || raw['date_of_birth'] === '')
+        ? null
+        : raw['date_of_birth'];
     return out;
 }
 
@@ -324,9 +323,11 @@ async function decClientRow(row) {
             const val = await aesDecrypt(row[field]);
             out[field] = val === 'true';
         } else {
-            out[field] = await aesDecrypt(row[field]);
+            out[field] = row[field] ? await aesDecrypt(row[field]) : '';
         }
     }
+    // date_of_birth is stored as plain DATE — no decryption needed
+    out['date_of_birth'] = row['date_of_birth'] || '';
     return out;
 }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -754,7 +755,7 @@ function parseImportRows(rows) {
         const aadhar  = String(row['Aadhaar']||'').trim();
         const dob     = row['Date of Birth']||'';
         const dobDate = dob ? (dob instanceof Date ? dob : new Date(dob)) : null;
-        const dobStr  = (dobDate && !isNaN(dobDate.getTime())) ? dobDate.toISOString().split("T")[0] : null;
+        const dobStr  = (dobDate && !isNaN(dobDate.getTime())) ? dobDate.toISOString().split('T')[0] : null;
         const isGST   = String(row['GST Registered']||'').toLowerCase() === 'yes';
         const gstNo   = String(row['GST No']||'').trim().toUpperCase();
         const type    = String(row['Assessee Type']||'').trim();
