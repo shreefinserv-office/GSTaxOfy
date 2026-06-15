@@ -1,32 +1,24 @@
-// js/supabase-config.js
-// ─────────────────────────────────────────────
-// REPLACE these two values with your own from:
-// Supabase Dashboard → Project Settings → API
-// ─────────────────────────────────────────────
-
 const SUPABASE_URL      = 'https://ghpgwnygnvawikhjybvq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdocGd3bnlnbnZhd2lraGp5YnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTE1MjksImV4cCI6MjA5NjcyNzUyOX0.Jz7q4j8uM3CPQsAQrDLusmC68tgDOmhfaOZVv49OIHw';
+const EXTENSION_ID = 'ghpgwnygnvawikhjybvq';
 
-// ─────────────────────────────────────────────
-// SERVICE ROLE KEY — used ONLY for admin user creation.
-// Get this from: Supabase Dashboard → Project Settings → API → service_role key
-// This is safe for an internal office tool (same as storing anon key).
-// ─────────────────────────────────────────────
-const SUPABASE_SERVICE_KEY = 'ghpgwnygnvawikhjybvq';
-
-// ─────────────────────────────────────────────
-// BASE PATH — for GitHub Pages hosting
-//
-// Set this to your GitHub Pages repo name:
-//   e.g. if hosted at  https://username.github.io/GStaxOfy/
-//   set BASE = '/GStaxOfy'
-//
-// For local development (Live Server / python -m http.server):
-//   set BASE = ''
-// ─────────────────────────────────────────────
-const BASE = '/GSTaxOfy';   // ← change to '' for local dev
-
-// Supabase JS v2 client
+// Helper: send login message to extension
+async function triggerExtensionLogin(action, credentials) {
+    if (!EXTENSION_ID || EXTENSION_ID === 'kjjpnlkcckjfendkffedbobbflpgiiob') {
+        return false; // Extension not configured — fall back to manual
+    }
+    return new Promise(resolve => {
+        try {
+            chrome.runtime.sendMessage(EXTENSION_ID, { action, ...credentials }, resp => {
+                resolve(!chrome.runtime.lastError && resp?.ok);
+            });
+        } catch (e) {
+            resolve(false);
+        }
+    });
+}
+const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdocGd3bnlnbnZhd2lraGp5YnZxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTE1MTUyOSwiZXhwIjoyMDk2NzI3NTI5fQ.zjkQaZRAVPFKcair60YOne2FZN9Sa7DpyFmbeJ1TSXs';
+const BASE = '/GSTaxOfy';
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
         autoRefreshToken: true,

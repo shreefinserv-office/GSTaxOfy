@@ -726,11 +726,17 @@ async function loginGSTPortal(gstin, clientId) {
     let pwd = '';
     if (cred?.gst_password) pwd = await decryptText(cred.gst_password) || '';
 
+    // Try extension auto-login first
+    const extOk = await triggerExtensionLogin('gst_login', { gstin: useGstin, password: pwd });
+    if (extOk) {
+        showToast('🚀 Auto-login triggered! Check the GST Portal tab.', 'success');
+        return;
+    }
+
+    // Fall back to copy + open
     const clip = `User ID (GSTIN): ${useGstin}\nPassword: ${pwd||'(not stored)'}`;
     try { await navigator.clipboard.writeText(clip); } catch(_) {}
-
     window.open('https://www.gst.gov.in/', '_blank');
-
     document.getElementById('copyPopupTitle').textContent = 'Credentials Copied!';
     document.getElementById('copyPopupMsg').textContent   = pwd
         ? 'GSTIN & Password copied to clipboard. Paste on the GST portal login page.'

@@ -356,35 +356,59 @@ async function createUser() {
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating…';
 
     try {
-        // 1. Create auth user via Admin API (email_confirm:true → no confirmation email,
-        //    user row exists immediately in auth.users → no FK violation)
-        const authData = await adminCreateAuthUser(email, password);
-        const userId   = authData.id;
-
-        // 2. Check username uniqueness
+        // Step 1: Check username uniqueness first
         const { data: existing } = await _supabase
             .from('user_profiles').select('id').eq('username', username).maybeSingle();
-        if (existing) { throw new Error('Username already exists.'); }
+        if (existing) throw new Error('Username already taken. Choose a different one.');
 
-        // 3. Insert profile — auth.users row is guaranteed to exist now
+        // Step 2: Try Admin API first (if service key configured)
+        let userId = null;
+        const svcKey = typeof SUPABASE_SERVICE_KEY !== 'undefined' && SUPABASE_SERVICE_KEY !== 'REPLACE_WITH_YOUR_SERVICE_ROLE_KEY'
+            ? SUPABASE_SERVICE_KEY : null;
+
+        if (svcKey) {
+            // Admin API — creates user with email_confirm:true, no FK issues
+            const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type':  'application/json',
+                    'apikey':         svcKey,
+                    'Authorization': `Bearer ${svcKey}`
+                },
+                body: JSON.stringify({ email, password, email_confirm: true })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.msg || data.message || 'Admin API failed: ' + res.status);
+            userId = data.id;
+        } else {
+            // Fallback: signUp — works if "Enable email confirmations" is OFF in Supabase Auth settings
+            const { data: authData, error: authErr } = await _supabase.auth.signUp({ email, password });
+            if (authErr) throw new Error(authErr.message);
+            if (!authData?.user) throw new Error('Sign up failed — no user returned. Ensure email confirmations are disabled in Supabase Auth settings.');
+            userId = authData.user.id;
+
+            // Wait briefly for auth.users row to commit
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        // Step 3: Insert profile
         const profile = getCachedProfile();
         const { error: profErr } = await _supabase.from('user_profiles').insert({
             id: userId, username, full_name: fullName,
-            email,
-            phone: mobile, address, role, department,
-            is_active: true,
-            created_by: profile?.id
+            email, phone: mobile, address, role, department,
+            is_active: true, created_by: profile?.id
         });
         if (profErr) throw new Error(profErr.message);
 
         await logAudit('CREATE_USER', 'user_profiles', userId, null, { username, full_name: fullName, role });
-        showToast(`User "${fullName}" created successfully! They can log in immediately.`, 'success');
+        showToast(`✅ User "${fullName}" created! They can log in immediately.`, 'success');
         closeModal('createModal');
-        // Reset form
-        ['c_fullName','c_email','c_mobile','c_username','c_address','c_password','c_confirm'].forEach(id => document.getElementById(id).value = '');
+        ['c_fullName','c_email','c_mobile','c_username','c_address','c_password','c_confirm']
+            .forEach(id => document.getElementById(id).value = '');
         document.getElementById('c_role').value = '';
         buildDeptCheckboxes('c_dept_grid', []);
         await loadUsers();
+
     } catch (err) {
         showToast(err.message, 'error');
     } finally {

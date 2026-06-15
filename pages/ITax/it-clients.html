@@ -771,6 +771,14 @@ async function loginITPortal(pan, clientId) {
     let pwd = '';
     if (cred?.it_password) pwd = await decryptText(cred.it_password) || '';
 
+    // Try extension auto-login first
+    const extOk = await triggerExtensionLogin('it_login', { pan: usePan, password: pwd });
+    if (extOk) {
+        showToast('🚀 Auto-login triggered! Check the IT Portal tab.', 'success');
+        return;
+    }
+
+    // Fall back to guided popup
     _itLoginData = { pan: usePan, pwd };
 
     // Build popup if not exists
