@@ -1,5 +1,19 @@
+// js/supabase-config.js
+// ─────────────────────────────────────────────
+// REPLACE these two values with your own from:
+// Supabase Dashboard → Project Settings → API
+// ─────────────────────────────────────────────
+
 const SUPABASE_URL      = 'https://ghpgwnygnvawikhjybvq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdocGd3bnlnbnZhd2lraGp5YnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNTE1MjksImV4cCI6MjA5NjcyNzUyOX0.Jz7q4j8uM3CPQsAQrDLusmC68tgDOmhfaOZVv49OIHw';
+
+// ─────────────────────────────────────────────
+// CHROME EXTENSION ID — for auto-login feature.
+// After installing the GStaxOfy Extension:
+// 1. Open the extension's setup.html page
+// 2. Copy the Extension ID shown there
+// 3. Paste it below replacing REPLACE_WITH_EXTENSION_ID
+// ─────────────────────────────────────────────
 const EXTENSION_ID = 'ghpgwnygnvawikhjybvq';
 
 // Helper: send login message to extension
@@ -17,8 +31,20 @@ async function triggerExtensionLogin(action, credentials) {
         }
     });
 }
-const SUPABASE_SERVICE_KEY = 'Fill it Later';
-const BASE = '/GSTaxOfy';
+
+// ─────────────────────────────────────────────
+// BASE PATH — for GitHub Pages hosting
+//
+// Set this to your GitHub Pages repo name:
+//   e.g. if hosted at  https://username.github.io/GStaxOfy/
+//   set BASE = '/GStaxOfy'
+//
+// For local development (Live Server / python -m http.server):
+//   set BASE = ''
+// ─────────────────────────────────────────────
+const BASE = '/GSTaxOfy';   // ← change to '' for local dev
+
+// Supabase JS v2 client
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: {
         autoRefreshToken: true,
@@ -136,31 +162,32 @@ async function confirmLogout() {
 }
 
 // ─────────────────────────────────────────────
-// Admin user creation via Service Role key.
-// Uses Supabase Admin API to create auth user
-// with email_confirm:true so the user row exists
-// immediately in auth.users (no FK violation).
+// Admin user creation via Supabase Edge Function.
+//
+// The service_role key is NEVER stored here — it
+// lives only in Supabase's server-side Secrets
+// (auto-available to Edge Functions as
+// SUPABASE_SERVICE_ROLE_KEY). Safe for a public
+// GitHub repo.
+//
+// Requires the "create-user" Edge Function to be
+// deployed:  supabase functions deploy create-user
 // ─────────────────────────────────────────────
 async function adminCreateAuthUser(email, password) {
-    if (!SUPABASE_SERVICE_KEY || SUPABASE_SERVICE_KEY === 'REPLACE_WITH_YOUR_SERVICE_ROLE_KEY') {
-        throw new Error('Service Role Key not configured. Go to Supabase → Project Settings → API → service_role, and paste it in js/supabase-config.js as SUPABASE_SERVICE_KEY.');
-    }
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated.');
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-user`, {
         method: 'POST',
         headers: {
             'Content-Type':  'application/json',
-            'apikey':         SUPABASE_SERVICE_KEY,
-            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey':         SUPABASE_ANON_KEY
         },
-        body: JSON.stringify({
-            email,
-            password,
-            email_confirm: true   // ← instantly confirmed, no email needed
-        })
+        body: JSON.stringify({ email, password })
     });
+
     const data = await res.json();
-    if (!res.ok) {
-        throw new Error(data.msg || data.message || `Admin API error: ${res.status}`);
-    }
-    return data; // contains data.id = new auth user UUID
+    if (!res.ok) throw new Error(data.error || 'Edge function error: ' + res.status);
+    return data; // { id: <new auth user UUID> }
 }
