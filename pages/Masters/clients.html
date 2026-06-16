@@ -336,6 +336,20 @@ async function decClientRow(row) {
 // ─────────────────────────────────────────────────────────────────────────────
 </script>
 <script>
+// ── Assessee type display order ──────────────────────────────
+const TYPE_ORDER = ['Individual','Proprietorship','Firm','HUF','Company','Trust','AOP/BOI','Other'];
+
+function sortClients(list) {
+    return [...list].sort((a, b) => {
+        const ai = TYPE_ORDER.indexOf(a.assessee_type);
+        const bi = TYPE_ORDER.indexOf(b.assessee_type);
+        const typeA = ai === -1 ? 999 : ai;
+        const typeB = bi === -1 ? 999 : bi;
+        if (typeA !== typeB) return typeA - typeB;
+        return (a.name || '').localeCompare(b.name || '', 'en', { sensitivity: 'base' });
+    });
+}
+
 let allClients  = [];
 let parentSvcs  = []; // is_parent=true
 let subSvcs     = []; // is_parent=false
@@ -363,7 +377,7 @@ async function loadClients() {
         .order('created_at', { ascending: false });
     if (error) { showToast('Failed to load clients.', 'error'); return; }
     // Decrypt all client rows
-    allClients = await Promise.all((data || []).map(decClientRow));
+    allClients = sortClients(await Promise.all((data || []).map(decClientRow)));
     renderTable(allClients);
 }
 
@@ -379,6 +393,7 @@ async function loadServices() {
 
 // ── Render table ─────────────────────────────────────────────
 function renderTable(clients) {
+    clients = sortClients(clients);
     const body = document.getElementById('clientBody');
     if (!clients.length) {
         body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#9ca3af">No clients found.</td></tr>';
