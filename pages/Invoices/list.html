@@ -62,6 +62,93 @@
     </div>
 </div>
 
+<!-- Edit Invoice Modal -->
+<div class="modal-overlay" id="editInvModal">
+    <div class="modal-box" style="max-width:520px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Invoice</span>
+            <button class="modal-close" onclick="closeModal('editInvModal')">&times;</button>
+        </div>
+        <input type="hidden" id="ei_id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="form-group">
+                <label style="font-size:12px">Invoice No. *</label>
+                <input type="text" id="ei_no" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box">
+            </div>
+            <div class="form-group">
+                <label style="font-size:12px">Invoice Date *</label>
+                <input type="date" id="ei_date" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box">
+            </div>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+            <label style="font-size:12px">Status</label>
+            <select id="ei_status" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;background:#fff">
+                <option value="unpaid">Unpaid</option>
+                <option value="paid">Paid</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:16px">
+            <label style="font-size:12px">Notes</label>
+            <textarea id="ei_notes" rows="2" style="resize:vertical;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box"></textarea>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('editInvModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEditInvoice()"><i class="fas fa-save"></i> Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteInvModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-trash" style="color:#dc2626;margin-right:8px"></i>Delete Invoice</span>
+            <button class="modal-close" onclick="closeModal('deleteInvModal')">&times;</button>
+        </div>
+        <input type="hidden" id="del_inv_id">
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Delete this invoice permanently? This cannot be undone.</p>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('deleteInvModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmDeleteInvoice()"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Print Invoice Hidden Area -->
+<div id="printArea" style="display:none">
+    <div id="printInvoicePreview"></div>
+</div>
+<style>
+    @media print {
+        body * { visibility:hidden }
+        #printArea, #printArea * { visibility:visible }
+        #printArea { display:block !important;position:absolute;left:0;top:0;width:100%;padding:20px;box-sizing:border-box }
+        .inv-preview { font-family:'Segoe UI',sans-serif }
+        .inv-firm-name { font-size:20px;font-weight:700;color:#1f2937 }
+        .inv-firm-sub  { font-size:12px;color:#6b7280;margin-top:2px }
+        .inv-center-title { text-align:center;margin:12px 0 4px;letter-spacing:3px;font-size:22px;font-weight:800;color:#1f2937;text-transform:uppercase;border-top:2px solid #e5e7eb;border-bottom:2px solid #e5e7eb;padding:8px 0 }
+        .inv-divider { border:none;border-top:2px solid #e5e7eb;margin:16px 0 }
+        .inv-label  { font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#9ca3af;margin-bottom:2px;font-weight:600 }
+        .inv-value  { font-size:13px;color:#1f2937;font-weight:600 }
+        .inv-sub    { font-size:11px;color:#6b7280 }
+        .inv-table  { width:100%;border-collapse:collapse;margin-bottom:16px }
+        .inv-table th { background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb }
+        .inv-table td { padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#1f2937 }
+        .inv-total-row { display:flex;justify-content:flex-end;margin-top:8px }
+        .inv-total-box { background:#2563eb;color:#fff;border-radius:8px;padding:12px 20px;min-width:200px }
+        .inv-total-label { font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.5px }
+        .inv-total-amount { font-size:22px;font-weight:800;margin-top:2px }
+        .inv-words { font-size:11px;color:#6b7280;margin-top:10px;font-style:italic }
+        .inv-bank { margin-top:20px;background:#f8fafc;border-radius:8px;padding:14px 16px }
+        .inv-bank-title { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:8px;font-weight:700 }
+        .inv-bank-grid { display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px }
+        .inv-bank-grid .k { color:#6b7280 }
+        .inv-bank-grid .v { color:#1f2937;font-weight:600 }
+        .inv-footer { margin-top:24px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px }
+    }
+</style>
+
 <!-- Status update modal -->
 <div class="modal-overlay" id="statusModal">
     <div class="modal-box" style="max-width:360px">
@@ -102,15 +189,72 @@
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
+// ── AES-256-GCM Client Field Decryption ──────────────────────
+const CLIENT_ENC_KEY_MATERIAL = 'GSTaxOfy-AES256-ClientData-Secret-v1';
+let _aesKey = null;
+async function getAESKey() {
+    if (_aesKey) return _aesKey;
+    const enc = new TextEncoder();
+    const km  = await crypto.subtle.importKey('raw', enc.encode(CLIENT_ENC_KEY_MATERIAL), { name:'PBKDF2' }, false, ['deriveKey']);
+    _aesKey   = await crypto.subtle.deriveKey(
+        { name:'PBKDF2', salt:enc.encode('GSTaxOfy-Salt-v1'), iterations:100000, hash:'SHA-256' },
+        km, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
+    );
+    return _aesKey;
+}
+async function aesDecrypt(ct) {
+    if (!ct || !String(ct).includes(':')) return ct || '';
+    try {
+        const key = await getAESKey();
+        const [ivB64, ctB64] = String(ct).split(':');
+        const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+        const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv:b(ivB64) }, key, b(ctB64));
+        return new TextDecoder().decode(pt);
+    } catch { return ct; }
+}
+async function decClientRow(row) {
+    if (!row) return row;
+    const fields = ['address','contact_no','email_id','gst_no','pan_no','aadhar_no','assessee_type'];
+    const out = { ...row };
+    for (const f of fields) { if (out[f]) out[f] = await aesDecrypt(out[f]); }
+    return out;
+}
+
+// Logo base64 cache
+let _logoB64 = null;
+async function getLogoBase64() {
+    if (_logoB64) return _logoB64;
+    try {
+        const res = await fetch('../../assets/shree.png');
+        const blob = await res.blob();
+        return new Promise(resolve => {
+            const r = new FileReader();
+            r.onload = () => { _logoB64 = r.result; resolve(_logoB64); };
+            r.readAsDataURL(blob);
+        });
+    } catch { return null; }
+}
+
 let allInvoices = [];
+let firmData = {};
+let allClients = {};   // id → decrypted client object
 
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
     renderSidebar('invoices');
     setActiveNav();
-    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
-    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    const [{ data: firm }, { data: clients }] = await Promise.all([
+        _supabase.from('firm_details').select('*').single(),
+        _supabase.from('clients').select('id, name, address, contact_no, email_id, gst_no').eq('is_active', true)
+    ]);
+    if (firm) {
+        firmData = firm;
+        document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    }
+    // Decrypt and index clients by id
+    const decClients = await Promise.all((clients || []).map(decClientRow));
+    decClients.forEach(c => { allClients[c.id] = c; });
     await loadInvoices();
 })();
 
@@ -149,8 +293,11 @@ function renderTable(invoices) {
         <td><strong>${inv.clients?.name||'—'}</strong></td>
         <td><strong style="color:#2563eb">₹ ${parseFloat(inv.total_amount||0).toFixed(2)}</strong></td>
         <td><span class="badge ${statusColors[inv.status]||'badge-gray'}">${(inv.status||'').charAt(0).toUpperCase()+(inv.status||'').slice(1)}</span></td>
-        <td style="white-space:nowrap">
-            <button class="btn btn-secondary btn-sm" onclick="openStatusModal(${inv.id},'${inv.status}')" title="Update Status"><i class="fas fa-edit"></i></button>
+        <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" onclick="openEditModal(${inv.id})" title="Edit Invoice"><i class="fas fa-edit"></i> Edit</button>
+            <button class="btn btn-sm" style="background:#f59e0b;color:#fff;border:none" onclick="cancelInvoice(${inv.id},'${inv.status}')" title="Cancel Invoice"><i class="fas fa-ban"></i> Cancel</button>
+            <button class="btn btn-sm" style="background:#2563eb;color:#fff;border:none" onclick="printInvoiceFromList(${inv.id})" title="Print / PDF"><i class="fas fa-print"></i> Print</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteInvoice(${inv.id})" title="Delete Invoice"><i class="fas fa-trash"></i> Delete</button>
         </td>
     </tr>`).join('');
 }
@@ -169,6 +316,159 @@ async function updateStatus() {
     showToast('Status updated.', 'success');
     closeModal('statusModal');
     await loadInvoices();
+}
+
+// ── Edit Invoice ──────────────────────────────────────────────
+function openEditModal(id) {
+    const inv = allInvoices.find(i => i.id === id);
+    if (!inv) return;
+    document.getElementById('ei_id').value     = id;
+    document.getElementById('ei_no').value     = inv.invoice_no || '';
+    document.getElementById('ei_date').value   = inv.invoice_date || '';
+    document.getElementById('ei_status').value = inv.status || 'unpaid';
+    document.getElementById('ei_notes').value  = inv.notes || '';
+    openModal('editInvModal');
+}
+
+async function saveEditInvoice() {
+    const id     = parseInt(document.getElementById('ei_id').value);
+    const invNo  = document.getElementById('ei_no').value.trim();
+    const invDate= document.getElementById('ei_date').value;
+    const status = document.getElementById('ei_status').value;
+    const notes  = document.getElementById('ei_notes').value.trim();
+    if (!invNo || !invDate) { showToast('Invoice No. and Date are required.', 'error'); return; }
+    const { error } = await _supabase.from('invoices').update({
+        invoice_no: invNo, invoice_date: invDate,
+        status, notes, updated_at: new Date().toISOString()
+    }).eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Invoice updated.', 'success');
+    closeModal('editInvModal');
+    await loadInvoices();
+}
+
+// ── Cancel Invoice ────────────────────────────────────────────
+async function cancelInvoice(id, currentStatus) {
+    if (currentStatus === 'cancelled') { showToast('Already cancelled.', 'error'); return; }
+    if (!confirm('Mark this invoice as Cancelled?')) return;
+    const { error } = await _supabase.from('invoices').update({ status:'cancelled', updated_at: new Date().toISOString() }).eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Invoice cancelled.', 'success');
+    await loadInvoices();
+}
+
+// ── Delete Invoice ────────────────────────────────────────────
+function deleteInvoice(id) {
+    document.getElementById('del_inv_id').value = id;
+    openModal('deleteInvModal');
+}
+async function confirmDeleteInvoice() {
+    const id = parseInt(document.getElementById('del_inv_id').value);
+    const { error } = await _supabase.from('invoices').delete().eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Invoice deleted.', 'success');
+    closeModal('deleteInvModal');
+    await loadInvoices();
+}
+
+// ── Print Invoice from List ───────────────────────────────────
+async function printInvoiceFromList(id) {
+    const inv = allInvoices.find(i => i.id === id);
+    if (!inv) return;
+
+    const client = allClients[inv.client_id] || { name: inv.clients?.name || '—' };
+    const items  = (() => { try { return JSON.parse(inv.line_items || '[]'); } catch { return []; } })();
+    const total  = parseFloat(inv.total_amount || 0);
+    const dateStr = new Date(inv.invoice_date).toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+    // Logo
+    const logoSrc = await getLogoBase64() || '../../assets/shree.png';
+    const logoHtml = `<img src="${logoSrc}" alt="Logo" style="width:60px;height:60px;object-fit:contain;margin-right:14px;flex-shrink:0">`;
+
+    // Bank section
+    let bankHtml = '';
+    if (firmData.bank_name || firmData.bank_acc_no || firmData.bank_upi) {
+        bankHtml = `<div class="inv-bank">
+            <div class="inv-bank-title">Bank Details for NEFT / RTGS / UPI</div>
+            <div class="inv-bank-grid">
+                ${firmData.bank_holder_name ? `<span class="k">Account Holder</span><span class="v">${firmData.bank_holder_name}</span>` : ''}
+                ${firmData.bank_name ? `<span class="k">Bank Name</span><span class="v">${firmData.bank_name}</span>` : ''}
+                ${firmData.bank_acc_no ? `<span class="k">Account No.</span><span class="v">${firmData.bank_acc_no} (${firmData.bank_acc_type||'Saving'})</span>` : ''}
+                ${firmData.bank_ifsc ? `<span class="k">IFSC Code</span><span class="v">${firmData.bank_ifsc}</span>` : ''}
+                ${firmData.bank_upi ? `<span class="k">UPI ID</span><span class="v">${firmData.bank_upi}</span>` : ''}
+            </div>
+        </div>`;
+    }
+
+    document.getElementById('printInvoicePreview').innerHTML = `
+        <div class="inv-preview">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div style="display:flex;align-items:flex-start">
+                    ${logoHtml}
+                    <div>
+                        <div class="inv-firm-name">${firmData.firm_name||''}</div>
+                        <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/
+/g,', ')}</div>
+                        <div class="inv-firm-sub">${firmData.phone||''} ${firmData.email_id ? '| '+firmData.email_id : ''}</div>
+                    </div>
+                </div>
+                <div style="text-align:right;min-width:140px">
+                    <div style="font-size:12px;color:#6b7280">No. ${inv.invoice_no}</div>
+                    <div style="font-size:12px;color:#6b7280">Date: ${dateStr}</div>
+                </div>
+            </div>
+            <div class="inv-center-title">INVOICE</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0 20px">
+                <div>
+                    <div class="inv-label">Bill To</div>
+                    <div class="inv-value">${client.name}</div>
+                    <div class="inv-sub">${client.address||''}</div>
+                    <div class="inv-sub">${client.contact_no||''}</div>
+                </div>
+                <div>${client.gst_no ? `<div class="inv-label">GST No.</div><div class="inv-value">${client.gst_no}</div>` : ''}</div>
+            </div>
+            <table class="inv-table">
+                <thead><tr><th>#</th><th>Description</th><th>SAC</th><th style="text-align:right">Amount</th></tr></thead>
+                <tbody>${items.map((li,i) => `<tr>
+                    <td>${i+1}</td><td>${li.description}</td>
+                    <td style="color:#6b7280">${li.sac||'—'}</td>
+                    <td style="text-align:right;font-weight:600">₹ ${parseFloat(li.amount||0).toFixed(2)}</td>
+                </tr>`).join('')}</tbody>
+            </table>
+            <div class="inv-total-row">
+                <div class="inv-total-box">
+                    <div class="inv-total-label">Total Amount</div>
+                    <div class="inv-total-amount">₹ ${total.toFixed(2)}/-</div>
+                </div>
+            </div>
+            <div class="inv-words">Amount in Words: <em>${amountToWords(total)} Rupees Only</em></div>
+            ${bankHtml}
+            ${inv.notes ? `<div style="margin-top:16px;font-size:12px;color:#1f2937">${inv.notes}</div>` : ''}
+            <div class="inv-footer">This is a computer generated invoice. No signature required.</div>
+        </div>`;
+
+    document.getElementById('printArea').style.display = 'block';
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => { document.getElementById('printArea').style.display = 'none'; }, 500);
+    }, 300);
+}
+
+// ── Amount to Words ───────────────────────────────────────────
+function amountToWords(amount) {
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
+        'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    function twoDigit(n) { return n < 20 ? ones[n] : tens[Math.floor(n/10)] + (n%10 ? ' '+ones[n%10] : ''); }
+    function threeDigit(n) { return n>=100 ? ones[Math.floor(n/100)]+' Hundred'+(n%100?' '+twoDigit(n%100):'') : twoDigit(n); }
+    const n = Math.floor(amount);
+    if (n === 0) return 'Zero';
+    let result = '';
+    if (n >= 10000000) result += threeDigit(Math.floor(n/10000000)) + ' Crore ';
+    if (n >= 100000)   result += threeDigit(Math.floor((n%10000000)/100000)) + ' Lakh ';
+    if (n >= 1000)     result += threeDigit(Math.floor((n%100000)/1000)) + ' Thousand ';
+    result += threeDigit(n%1000);
+    return result.trim();
 }
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>
