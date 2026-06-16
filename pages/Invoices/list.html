@@ -407,8 +407,7 @@ async function printInvoiceFromList(id) {
                     ${logoHtml}
                     <div>
                         <div class="inv-firm-name">${firmData.firm_name||''}</div>
-                        <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/
-/g,', ')}</div>
+                        <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/,/g,', ')}</div>
                         <div class="inv-firm-sub">${firmData.phone||''} ${firmData.email_id ? '| '+firmData.email_id : ''}</div>
                     </div>
                 </div>
