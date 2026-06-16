@@ -170,6 +170,20 @@
                         </button>
                     </div>
                 </div>
+                <!-- System Data Backup -->
+                <div class="backup-card" id="sysBackupCard">
+                    <div class="card-icon" style="background:linear-gradient(45deg,#b45309,#f59e0b)"><i class="fas fa-hdd"></i></div>
+                    <h3>System Data Backup</h3>
+                    <p>Backup local folders (D: drive) to F: drive &amp; network server via Windows Task Scheduler</p>
+                    <div class="btn-group">
+                        <button class="btn btn-sm" id="sysBackupBtn"
+                            style="background:linear-gradient(135deg,#b45309,#f59e0b);color:#fff;border:none;font-weight:600"
+                            onclick="runSystemBackup()">
+                            <i class="fas fa-play"></i> Run Backup
+                        </button>
+                    </div>
+                    <div id="sysBackupStatus" style="margin-top:10px;font-size:12px;min-height:18px;color:#6b7280;text-align:center"></div>
+                </div>
             </div>
 
             <!-- Combined Backup -->
@@ -423,6 +437,18 @@ async function backupAll() {
     } catch(err) {
         showToast('Full backup failed: ' + err.message, 'error');
         addLog('times-circle', '#dc2626', 'Full backup failed: ' + err.message);
+    }
+}
+
+// ── System Data Backup (Windows Task Scheduler) ───────────────────────────────
+async function runSystemBackup() {
+    // Electron-powered: opens the dedicated backup progress window
+    if (window.electronAPI?.openBackupWindow) {
+        await window.electronAPI.openBackupWindow();
+    } else {
+        // Fallback: show a notice (non-Electron / browser context)
+        const status = document.getElementById('sysBackupStatus');
+        status.innerHTML = '<span style="color:#f59e0b"><i class="fas fa-info-circle"></i> Run inside the GStaxOfy desktop app for live backup progress.</span>';
     }
 }
 
