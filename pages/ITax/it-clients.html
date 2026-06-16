@@ -371,6 +371,38 @@ async function decryptText(b64) {
     } catch { return null; }
 }
 
+// ── AES-256-GCM Client Field Decryption (matches clients.html format) ─────────
+const CLIENT_ENC_KEY_MATERIAL = 'GSTaxOfy-AES256-ClientData-Secret-v1';
+let _clientAesKey = null;
+async function getClientAESKey() {
+    if (_clientAesKey) return _clientAesKey;
+    const enc = new TextEncoder();
+    const km = await crypto.subtle.importKey('raw', enc.encode(CLIENT_ENC_KEY_MATERIAL), { name: 'PBKDF2' }, false, ['deriveKey']);
+    _clientAesKey = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: enc.encode('GSTaxOfy-Salt-v1'), iterations: 100000, hash: 'SHA-256' },
+        km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+    );
+    return _clientAesKey;
+}
+async function decClientField(ciphertext) {
+    if (!ciphertext || !String(ciphertext).includes(':')) return ciphertext || '';
+    try {
+        const key = await getClientAESKey();
+        const [ivB64, ctB64] = String(ciphertext).split(':');
+        const b64ToArr = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+        const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToArr(ivB64) }, key, b64ToArr(ctB64));
+        return new TextDecoder().decode(pt);
+    } catch { return ciphertext; }
+}
+async function decClientRow(row) {
+    const fields = ['pan_no', 'contact_no', 'email_id', 'address', 'assessee_type', 'gst_no', 'aadhar_no'];
+    const out = { ...row };
+    for (const f of fields) {
+        if (out[f]) out[f] = await decClientField(out[f]);
+    }
+    return out;
+}
+
 // ── State ─────────────────────────────────────────────────────
 let allITClients = []; // joined data
 let firmData     = {};
@@ -473,7 +505,7 @@ async function loadITClients() {
     const [{ data: clients }, { data: creds }] = await Promise.all([
         _supabase
             .from('clients')
-            .select('id, name, pan_no, contact_no, email_id, date_of_birth, assessee_type, is_active')
+            .select('id, name, pan_no, contact_no, email_id, address, aadhar_no, date_of_birth, assessee_type, gst_no, is_active')
             .in('id', clientIds)
             .eq('is_active', true)
             .order('name'),
@@ -493,9 +525,12 @@ async function loadITClients() {
         }
     });
 
+    // Step 6b: Decrypt client fields (AES-256-GCM encrypted in clients table)
+    const decryptedClients = await Promise.all((clients || []).map(decClientRow));
+
     // Step 7: Merge + auto overdue
     const today = new Date(); today.setHours(0,0,0,0);
-    allITClients = (clients || []).map(c => {
+    allITClients = decryptedClients.map(c => {
         const cred = credsMap[c.id] || {};
         let effStatus = cred.status || 'Pending';
         if (effStatus !== 'Filed' && cred.due_date && new Date(cred.due_date) < today) {
