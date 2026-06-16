@@ -291,27 +291,23 @@ async function aesDecrypt(ciphertext) {
 }
 
 // Fields to encrypt (name stays plain for display/search per requirement)
-// NOTE: date_of_birth is a native DATE column — must NOT be encrypted
+// date_of_birth is a native DATE column — NEVER encrypt it
 const ENCRYPTED_FIELDS = [
     'address', 'contact_no', 'email_id', 'pan_no',
-    'aadhar_no', 'assessee_type',
-    'is_gst_registered', 'gst_no'
+    'aadhar_no', 'assessee_type', 'gst_no'
+    // is_gst_registered removed from encryption — stored as plain BOOLEAN
 ];
 
 async function encClientPayload(raw) {
     const out = { ...raw };
     for (const field of ENCRYPTED_FIELDS) {
-        if (field === 'is_gst_registered') {
-            // boolean → string for encryption, store as enc string
-            out[field] = await aesEncrypt(raw[field] !== undefined ? String(raw[field]) : '');
-        } else {
-            out[field] = await aesEncrypt(raw[field] !== undefined ? raw[field] : '');
-        }
+        out[field] = await aesEncrypt(raw[field] !== undefined && raw[field] !== null ? raw[field] : '');
     }
-    // date_of_birth is a native DATE column — store as plain YYYY-MM-DD string or null, never encrypt
-    out['date_of_birth'] = (raw['date_of_birth'] === null || raw['date_of_birth'] === undefined || raw['date_of_birth'] === '')
-        ? null
-        : raw['date_of_birth'];
+    // is_gst_registered → plain boolean (not encrypted), Supabase expects BOOLEAN
+    out['is_gst_registered'] = raw['is_gst_registered'] === true || raw['is_gst_registered'] === 'true' || raw['is_gst_registered'] === 1;
+    // date_of_birth → plain DATE string (YYYY-MM-DD) or null, NEVER encrypt
+    const dob = raw['date_of_birth'];
+    out['date_of_birth'] = (dob === null || dob === undefined || dob === '') ? null : String(dob).trim().substring(0, 10);
     return out;
 }
 
@@ -319,14 +315,21 @@ async function decClientRow(row) {
     if (!row) return row;
     const out = { ...row };
     for (const field of ENCRYPTED_FIELDS) {
-        if (field === 'is_gst_registered') {
-            const val = await aesDecrypt(row[field]);
-            out[field] = val === 'true';
-        } else {
-            out[field] = row[field] ? await aesDecrypt(row[field]) : '';
-        }
+        out[field] = row[field] ? await aesDecrypt(row[field]) : '';
     }
-    // date_of_birth is stored as plain DATE — no decryption needed
+    // is_gst_registered — stored as plain BOOLEAN now.
+    // Handle legacy rows that may have stored it as AES-encrypted 'true'/'false' string.
+    const gstRaw = row['is_gst_registered'];
+    if (typeof gstRaw === 'boolean') {
+        out['is_gst_registered'] = gstRaw;
+    } else if (typeof gstRaw === 'string' && gstRaw.includes(':')) {
+        // Legacy: encrypted string — decrypt it
+        const decGst = await aesDecrypt(gstRaw);
+        out['is_gst_registered'] = decGst === 'true';
+    } else {
+        out['is_gst_registered'] = gstRaw === true || gstRaw === 'true' || gstRaw === 1;
+    }
+    // date_of_birth — plain DATE column, no decryption needed
     out['date_of_birth'] = row['date_of_birth'] || '';
     return out;
 }
