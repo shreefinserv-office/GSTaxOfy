@@ -26,6 +26,7 @@
         .inv-title { text-align:right }
         .inv-title h2 { font-size:28px;font-weight:800;color:#2563eb;letter-spacing:2px;margin:0 }
         .inv-title p  { font-size:12px;color:#6b7280;margin:3px 0 0 }
+        .inv-center-title { text-align:center;margin:12px 0 4px;letter-spacing:3px;font-size:22px;font-weight:800;color:#1f2937;text-transform:uppercase;border-top:2px solid #e5e7eb;border-bottom:2px solid #e5e7eb;padding:8px 0 }
         .inv-divider { border:none;border-top:2px solid #e5e7eb;margin:16px 0 }
         .inv-client-section { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px }
         .inv-label  { font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#9ca3af;margin-bottom:2px;font-weight:600 }
@@ -177,6 +178,52 @@
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
+// ── AES-256-GCM Client Field Decryption ──────────────────────
+const CLIENT_ENC_KEY_MATERIAL = 'GSTaxOfy-AES256-ClientData-Secret-v1';
+let _aesKey = null;
+async function getAESKey() {
+    if (_aesKey) return _aesKey;
+    const enc = new TextEncoder();
+    const km  = await crypto.subtle.importKey('raw', enc.encode(CLIENT_ENC_KEY_MATERIAL), { name:'PBKDF2' }, false, ['deriveKey']);
+    _aesKey   = await crypto.subtle.deriveKey(
+        { name:'PBKDF2', salt:enc.encode('GSTaxOfy-Salt-v1'), iterations:100000, hash:'SHA-256' },
+        km, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
+    );
+    return _aesKey;
+}
+async function aesDecrypt(ct) {
+    if (!ct || !String(ct).includes(':')) return ct || '';
+    try {
+        const key = await getAESKey();
+        const [ivB64, ctB64] = String(ct).split(':');
+        const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+        const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv:b(ivB64) }, key, b(ctB64));
+        return new TextDecoder().decode(pt);
+    } catch { return ct; }
+}
+async function decClientRow(row) {
+    if (!row) return row;
+    const fields = ['address','contact_no','email_id','gst_no','pan_no','aadhar_no','assessee_type'];
+    const out = { ...row };
+    for (const f of fields) { if (out[f]) out[f] = await aesDecrypt(out[f]); }
+    return out;
+}
+
+// Logo as base64 — loaded once, reused for preview + PDF
+let _logoB64 = null;
+async function getLogoBase64() {
+    if (_logoB64) return _logoB64;
+    try {
+        const res = await fetch('../../assets/shree.png');
+        const blob = await res.blob();
+        return new Promise(resolve => {
+            const r = new FileReader();
+            r.onload = () => { _logoB64 = r.result; resolve(_logoB64); };
+            r.readAsDataURL(blob);
+        });
+    } catch { return null; }
+}
+
 let allClients = [];
 let firmData   = {};
 let clientTasks = [];
@@ -201,7 +248,7 @@ let lineItemCount = 0;
         firmData = firm;
         document.getElementById('firmNameHeader').textContent = firm.firm_name;
     }
-    allClients = clients || [];
+    allClients = await Promise.all((clients || []).map(decClientRow));
 
     const sel = document.getElementById('inv_client');
     allClients.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
@@ -294,7 +341,7 @@ function calcTotal() {
 }
 
 // ── PREVIEW ──────────────────────────────────────────────────
-function refreshPreview() {
+async function refreshPreview() {
     const invNo   = document.getElementById('inv_no').value.trim();
     const invDate = document.getElementById('inv_date').value;
     const cid     = parseInt(document.getElementById('inv_client').value);
@@ -310,7 +357,12 @@ function refreshPreview() {
 
     const dateStr = new Date(invDate).toLocaleDateString('en-IN', { day:'2-digit', month:'2-digit', year:'numeric' });
 
-    // Build bank section
+    // Logo image — load from assets/shree.png
+    const logoSrc = await getLogoBase64() || '../../assets/shree.png';
+    const logoHtml = `<img src="${logoSrc}" alt="Logo"
+        style="width:60px;height:60px;object-fit:contain;margin-right:14px;flex-shrink:0">`;
+
+    // Bank section
     let bankHtml = '';
     if (firmData.bank_name || firmData.bank_acc_no || firmData.bank_upi) {
         bankHtml = `<div class="inv-bank">
@@ -326,21 +378,23 @@ function refreshPreview() {
     }
 
     document.getElementById('invoicePreview').innerHTML = `
-        <div class="inv-header">
-            <div>
-                <div class="inv-firm-name">${firmData.firm_name||''}</div>
-                <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/\n/g,', ')}</div>
-                <div class="inv-firm-sub">${firmData.phone||''} ${firmData.email_id ? '| '+firmData.email_id : ''}</div>
-                ${firmData.registration_no ? `<div class="inv-firm-sub">Reg. No.: ${firmData.registration_no}</div>` : ''}
+        <div class="inv-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="display:flex;align-items:flex-start">
+                ${logoHtml}
+                <div>
+                    <div class="inv-firm-name">${firmData.firm_name||''}</div>
+                    <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/
+/g,', ')}</div>
+                    <div class="inv-firm-sub">${firmData.phone||''} ${firmData.email_id ? '| '+firmData.email_id : ''}</div>
+                </div>
             </div>
-            <div class="inv-title">
-                <h2>INVOICE</h2>
-                <p>No. ${invNo}</p>
-                <p>Date: ${dateStr}</p>
+            <div class="inv-title" style="text-align:right;min-width:140px">
+                <p style="font-size:12px;color:#6b7280;margin:2px 0">No. ${invNo}</p>
+                <p style="font-size:12px;color:#6b7280;margin:2px 0">Date: ${dateStr}</p>
             </div>
         </div>
-        <hr class="inv-divider">
-        <div class="inv-client-section">
+        <div class="inv-center-title">INVOICE</div>
+        <div class="inv-client-section" style="margin-top:14px">
             <div>
                 <div class="inv-label">Bill To</div>
                 <div class="inv-value">${client.name}</div>
@@ -375,8 +429,8 @@ function refreshPreview() {
     `;
 }
 
-function printInvoice() {
-    refreshPreview();
+async function printInvoice() {
+    await refreshPreview();
     setTimeout(() => window.print(), 300);
 }
 
