@@ -1,61 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>GSTaxOfy — Income & Expenses</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="../../css/style.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="manifest" href="../../manifest.json">
+<meta name="theme-color" content="#2563eb">
 <style>
-.group-section { margin-bottom:28px }
-.group-header  { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;padding:6px 0;border-bottom:2px solid #e5e7eb;margin-bottom:10px;display:flex;align-items:center;gap:8px }
-.group-dot     { width:10px;height:10px;border-radius:50%;flex-shrink:0 }
-.acc-row       { display:grid;grid-template-columns:1fr 130px 110px 110px 90px;gap:0;align-items:center;padding:10px 14px;border-radius:8px;margin-bottom:4px;border:1px solid #f3f4f6;background:#fff;font-size:13px }
-.acc-row:hover { background:#f8fafc;border-color:#e5e7eb }
-.acc-name      { font-weight:600;color:#1f2937 }
-.acc-group     { color:#6b7280;font-size:12px }
-.acc-bal       { text-align:right;font-weight:600 }
-.acc-bal.dr    { color:#2563eb }
-.acc-bal.cr    { color:#059669 }
-.acc-type-badge{ display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600 }
-.badge-income  { background:#dcfce7;color:#166534 }
-.badge-expense { background:#fee2e2;color:#991b1b }
-.badge-asset   { background:#dbeafe;color:#1e40af }
-.badge-liab    { background:#fef3c7;color:#92400e }
-.badge-capital { background:#ede9fe;color:#5b21b6 }
-.sys-lock      { color:#9ca3af;font-size:11px }
-.tab-btn       { padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#f3f4f6;color:#6b7280;transition:all .2s }
-.tab-btn.active{ background:#2563eb;color:#fff }
-.col-header    { display:grid;grid-template-columns:1fr 130px 110px 110px 90px;gap:0;padding:6px 14px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px }
-.col-header span:not(:first-child){ text-align:right }
+.tab-btn        { padding:7px 16px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:#6b7280;transition:all .15s }
+.tab-btn.active { background:#2563eb;color:#fff;border-color:#2563eb }
+.group-section  { margin-bottom:24px }
+.group-hdr      { display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:2px solid #e5e7eb;margin-bottom:8px }
+.group-dot      { width:10px;height:10px;border-radius:50%;flex-shrink:0 }
+.group-title    { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#6b7280 }
+.group-count    { margin-left:auto;font-size:11px;color:#9ca3af }
+.col-hdr        { display:grid;grid-template-columns:1fr 160px 110px 130px 100px;gap:0;padding:6px 14px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px }
+.col-hdr span:not(:first-child) { text-align:right }
+.acc-row        { display:grid;grid-template-columns:1fr 160px 110px 130px 100px;align-items:center;padding:10px 14px;border-radius:8px;margin-bottom:3px;border:1px solid #f3f4f6;background:#fff;font-size:13px;transition:border-color .15s }
+.acc-row:hover  { border-color:#e5e7eb;background:#fafafa }
+.acc-name       { font-weight:600;color:#1f2937 }
+.acc-sub        { font-size:11px;color:#9ca3af;margin-top:1px }
+.acc-group      { color:#6b7280;font-size:12px;text-align:right }
+.acc-bal        { text-align:right;font-weight:600;font-size:12px }
+.acc-bal.dr     { color:#2563eb }
+.acc-bal.cr     { color:#059669 }
+.type-badge     { display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;text-align:right }
+.b-income       { background:#dcfce7;color:#166534 }
+.b-expense      { background:#fee2e2;color:#991b1b }
+.b-asset        { background:#dbeafe;color:#1e40af }
+.b-liab         { background:#fef3c7;color:#92400e }
+.b-capital      { background:#ede9fe;color:#5b21b6 }
+.sys-lock       { color:#9ca3af;font-size:11px;text-align:right }
+.acc-actions    { display:flex;gap:5px;justify-content:flex-end }
 </style>
 </head>
 <body>
-<div class="app-layout">
-    <aside class="sidebar" id="sidebar-placeholder"></aside>
-    <main class="content-area">
-        <div class="section-header">
-            <div class="page-title"><i class="fas fa-coins"></i> Income &amp; Expenses</div>
-            <div style="display:flex;gap:8px">
-                <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
-                <button class="btn btn-primary btn-sm" onclick="openAddModal()"><i class="fas fa-plus"></i> Add Account</button>
+<div class="app-container">
+    <header class="header">
+        <div class="logo-section">
+            <div class="ca-logo">
+                <img src="../../assets/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                <span class="ca-logo-text" style="display:none">CA</span>
+            </div>
+            <div class="company-info"><h1 id="firmNameHeader">GSTaxOfy</h1><p>GSTaxOfy</p></div>
+        </div>
+        <div class="user-info" onclick="toggleUserDropdown()">
+            <div class="user-avatar" id="headerAvatar">G</div>
+            <div class="user-details">
+                <div class="user-name" id="headerUserName">Loading…</div>
+                <div class="user-role" id="headerUserRole"></div>
+            </div>
+            <i class="fas fa-chevron-down" style="color:#6b7280;font-size:12px;margin-left:4px"></i>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="user-dropdown-item" onclick="window.location.href=ROUTES.changePassword()"><i class="fas fa-key"></i> Change Password</div>
+                <div class="user-dropdown-item danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</div>
             </div>
         </div>
+    </header>
+    <div class="main-content">
+        <aside class="sidebar" id="sidebar-placeholder"></aside>
+        <main class="content-area">
+            <div class="section-header">
+                <div class="page-title" style="margin:0"><i class="fas fa-coins"></i> Income &amp; Expenses</div>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                    <button class="btn btn-primary btn-sm" onclick="openAddModal()"><i class="fas fa-plus"></i> Add Account</button>
+                </div>
+            </div>
 
-        <!-- Tab Filter -->
-        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
-            <button class="tab-btn active" id="tab-all"      onclick="setTab('all')">All Accounts</button>
-            <button class="tab-btn"        id="tab-income"   onclick="setTab('income')">Income</button>
-            <button class="tab-btn"        id="tab-expense"  onclick="setTab('expense')">Expenses</button>
-            <button class="tab-btn"        id="tab-asset"    onclick="setTab('asset')">Assets</button>
-            <button class="tab-btn"        id="tab-liability"onclick="setTab('liability')">Liabilities</button>
-            <button class="tab-btn"        id="tab-capital"  onclick="setTab('capital')">Capital</button>
-        </div>
+            <!-- Tab Filter -->
+            <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+                <button class="tab-btn active" id="tab-all"       onclick="setTab('all')">All Accounts</button>
+                <button class="tab-btn"         id="tab-income"   onclick="setTab('income')">Income</button>
+                <button class="tab-btn"         id="tab-expense"  onclick="setTab('expense')">Expenses</button>
+                <button class="tab-btn"         id="tab-asset"    onclick="setTab('asset')">Assets</button>
+                <button class="tab-btn"         id="tab-liability"onclick="setTab('liability')">Liabilities</button>
+                <button class="tab-btn"         id="tab-capital"  onclick="setTab('capital')">Capital</button>
+            </div>
 
-        <div id="accountsContainer"></div>
-    </main>
+            <div id="accountsContainer"></div>
+        </main>
+    </div>
 </div>
 
-<!-- Add/Edit Account Modal -->
+<!-- Logout Modal -->
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to logout?</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add / Edit Account Modal -->
 <div class="modal-overlay" id="accModal">
     <div class="modal-box" style="max-width:480px">
         <div class="modal-header">
@@ -103,12 +144,12 @@
         </div>
         <div class="form-actions" style="margin-top:16px">
             <button class="btn btn-secondary" onclick="closeModal('accModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="saveAccount()"><i class="fas fa-save"></i> Save</button>
+            <button class="btn btn-primary"   onclick="saveAccount()"><i class="fas fa-save"></i> Save</button>
         </div>
     </div>
 </div>
 
-<!-- Delete Confirm -->
+<!-- Delete Confirm Modal -->
 <div class="modal-overlay" id="delAccModal">
     <div class="modal-box" style="max-width:340px">
         <div class="modal-header">
@@ -116,7 +157,7 @@
             <button class="modal-close" onclick="closeModal('delAccModal')">&times;</button>
         </div>
         <input type="hidden" id="del_acc_id">
-        <p style="color:#6b7280;text-align:center;margin-bottom:20px">Delete this account? This cannot be undone.</p>
+        <p style="color:#6b7280;text-align:center;margin-bottom:20px">Delete this account permanently? This cannot be undone.</p>
         <div class="form-actions">
             <button class="btn btn-secondary" onclick="closeModal('delAccModal')">Cancel</button>
             <button class="btn btn-danger"    onclick="confirmDeleteAccount()"><i class="fas fa-trash"></i> Delete</button>
@@ -133,25 +174,20 @@
 let allAccounts = [];
 let currentTab  = 'all';
 
-// Group definitions with display order, colors, side
 const GROUP_META = {
-    // Income groups
-    'Direct Income':          { type:'Income',    color:'#059669', label:'Direct Income'          },
-    'Indirect Income':        { type:'Income',    color:'#10b981', label:'Indirect Income'        },
-    // Expense groups
-    'Direct Expenses':        { type:'Expense',   color:'#dc2626', label:'Direct Expenses'        },
-    'Indirect Expenses':      { type:'Expense',   color:'#f59e0b', label:'Indirect Expenses'      },
-    // Asset groups
-    'Non-Current Assets':     { type:'Asset',     color:'#2563eb', label:'Non-Current Assets'     },
-    'Investments':            { type:'Asset',     color:'#3b82f6', label:'Investments'             },
-    'Current Assets':         { type:'Asset',     color:'#60a5fa', label:'Current Assets'         },
-    'Sundry Debtors':         { type:'Asset',     color:'#93c5fd', label:'Sundry Debtors'         },
-    'Cash Account':           { type:'Asset',     color:'#bfdbfe', label:'Cash Account'           },
-    'Bank Account':           { type:'Asset',     color:'#dbeafe', label:'Bank Account'           },
-    // Liability groups
-    'Capital Account':        { type:'Capital',   color:'#7c3aed', label:'Capital Account'        },
-    'Non-Current Liabilities':{ type:'Liability', color:'#b45309', label:'Non-Current Liabilities'},
-    'Current Liabilities':    { type:'Liability', color:'#d97706', label:'Current Liabilities'    },
+    'Direct Income':           { color:'#059669' },
+    'Indirect Income':         { color:'#10b981' },
+    'Direct Expenses':         { color:'#dc2626' },
+    'Indirect Expenses':       { color:'#f59e0b' },
+    'Non-Current Assets':      { color:'#2563eb' },
+    'Investments':             { color:'#3b82f6' },
+    'Current Assets':          { color:'#60a5fa' },
+    'Sundry Debtors':          { color:'#93c5fd' },
+    'Cash Account':            { color:'#0e7490' },
+    'Bank Account':            { color:'#0891b2' },
+    'Capital Account':         { color:'#7c3aed' },
+    'Non-Current Liabilities': { color:'#b45309' },
+    'Current Liabilities':     { color:'#d97706' },
 };
 
 const GROUP_OPTIONS = {
@@ -166,11 +202,24 @@ const SUBTYPE_OPTIONS = {
     Expense: ['Direct Expenses','Indirect Expenses'],
 };
 const DEFAULT_BALTYPE = { Income:'Cr', Expense:'Dr', Asset:'Dr', Liability:'Cr', Capital:'Cr' };
+const TYPE_BADGE = { Income:'b-income', Expense:'b-expense', Asset:'b-asset', Liability:'b-liab', Capital:'b-capital' };
 
-document.addEventListener('DOMContentLoaded', async () => {
+const GROUP_ORDER = [
+    'Direct Income','Indirect Income',
+    'Direct Expenses','Indirect Expenses',
+    'Capital Account','Non-Current Liabilities','Current Liabilities',
+    'Non-Current Assets','Investments','Current Assets','Sundry Debtors','Cash Account','Bank Account'
+];
+
+(async () => {
+    const profile = await initLayout();
+    if (!profile) return;
     renderSidebar('income-expenses');
+    setActiveNav();
+    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
+    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
     await loadAccounts();
-});
+})();
 
 async function loadAccounts() {
     const { data, error } = await _supabase.from('accounts').select('*').order('group_name').order('name');
@@ -191,46 +240,47 @@ function renderAccounts() {
     const filterType = typeMap[currentTab];
     const filtered = filterType ? allAccounts.filter(a => a.account_type === filterType) : allAccounts;
 
-    // Group by group_name
+    // Group
     const groups = {};
     filtered.forEach(a => {
         if (!groups[a.group_name]) groups[a.group_name] = [];
         groups[a.group_name].push(a);
     });
-
-    const groupOrder = Object.keys(GROUP_META);
     const sortedGroups = Object.keys(groups).sort((a,b) => {
-        const ai = groupOrder.indexOf(a), bi = groupOrder.indexOf(b);
+        const ai = GROUP_ORDER.indexOf(a), bi = GROUP_ORDER.indexOf(b);
         return (ai===-1?999:ai) - (bi===-1?999:bi);
     });
 
-    let html = '';
-    if (!sortedGroups.length) { html = '<div class="empty-state"><p>No accounts found.</p></div>'; }
+    if (!sortedGroups.length) {
+        document.getElementById('accountsContainer').innerHTML = '<div class="empty-state"><p>No accounts found.</p></div>';
+        return;
+    }
 
+    let html = '';
     sortedGroups.forEach(grp => {
-        const meta  = GROUP_META[grp] || { color:'#6b7280' };
-        const rows  = groups[grp];
+        const meta = GROUP_META[grp] || { color:'#6b7280' };
+        const rows = groups[grp];
         html += `<div class="group-section">
-            <div class="group-header">
+            <div class="group-hdr">
                 <div class="group-dot" style="background:${meta.color}"></div>
-                ${grp} <span style="margin-left:auto;font-size:11px;color:#9ca3af">${rows.length} account${rows.length!==1?'s':''}</span>
+                <span class="group-title">${grp}</span>
+                <span class="group-count">${rows.length} account${rows.length!==1?'s':''}</span>
             </div>
-            <div class="col-header">
+            <div class="col-hdr">
                 <span>Account Name</span><span>Group</span><span>Type</span><span>Opening Bal.</span><span>Actions</span>
             </div>`;
         rows.forEach(a => {
-            const typeClass = { Income:'badge-income', Expense:'badge-expense', Asset:'badge-asset', Liability:'badge-liab', Capital:'badge-capital' }[a.account_type] || '';
-            const balClass  = a.balance_type === 'Dr' ? 'dr' : 'cr';
+            const balClass = a.balance_type==='Dr' ? 'dr' : 'cr';
             const ob = parseFloat(a.opening_balance||0).toFixed(2);
             html += `<div class="acc-row">
                 <div>
                     <div class="acc-name">${a.name}</div>
-                    ${a.sub_type?`<div style="font-size:11px;color:#9ca3af">${a.sub_type}</div>`:''}
+                    ${a.sub_type ? `<div class="acc-sub">${a.sub_type}</div>` : ''}
                 </div>
                 <div class="acc-group">${a.group_name}</div>
-                <div><span class="acc-type-badge ${typeClass}">${a.account_type}</span></div>
+                <div style="text-align:right"><span class="type-badge ${TYPE_BADGE[a.account_type]||''}">${a.account_type}</span></div>
                 <div class="acc-bal ${balClass}">₹ ${ob} ${a.balance_type}</div>
-                <div style="display:flex;gap:6px;justify-content:flex-end">
+                <div class="acc-actions">
                     ${a.is_system
                         ? `<span class="sys-lock"><i class="fas fa-lock"></i> System</span>`
                         : `<button class="btn btn-secondary btn-sm" style="padding:4px 8px" onclick='openEditModal(${JSON.stringify(a)})'><i class="fas fa-edit"></i></button>
@@ -246,16 +296,14 @@ function renderAccounts() {
 }
 
 function updateGroupOptions() {
-    const type = document.getElementById('acc_type').value;
+    const type   = document.getElementById('acc_type').value;
     const grpSel = document.getElementById('acc_group');
-    const subRow  = document.getElementById('subTypeRow');
-    const subSel  = document.getElementById('acc_subtype');
-    const subLabel= document.getElementById('subTypeLabel');
-    const balSel  = document.getElementById('acc_baltype');
+    const subRow = document.getElementById('subTypeRow');
+    const subSel = document.getElementById('acc_subtype');
+    const balSel = document.getElementById('acc_baltype');
 
     grpSel.innerHTML = '<option value="">— Select Group —</option>';
     subRow.style.display = 'none';
-
     if (!type) return;
 
     (GROUP_OPTIONS[type]||[]).forEach(g => grpSel.innerHTML += `<option value="${g}">${g}</option>`);
@@ -263,26 +311,25 @@ function updateGroupOptions() {
 
     if (SUBTYPE_OPTIONS[type]) {
         subRow.style.display = '';
-        subLabel.textContent = type === 'Income' ? 'Income Type *' : 'Expense Type *';
-        subSel.innerHTML = SUBTYPE_OPTIONS[type].map(s => `<option value="${s}">${s}</option>`).join('');
-        // Auto-sync group with subtype
+        document.getElementById('subTypeLabel').textContent = type==='Income' ? 'Income Type *' : 'Expense Type *';
+        subSel.innerHTML = SUBTYPE_OPTIONS[type].map(s=>`<option value="${s}">${s}</option>`).join('');
         subSel.onchange = () => {
             const sub = subSel.value;
-            if (type === 'Income')  grpSel.value = sub === 'Direct Income'    ? 'Direct Income'    : 'Indirect Income';
-            if (type === 'Expense') grpSel.value = sub === 'Direct Expenses'  ? 'Direct Expenses'  : 'Indirect Expenses';
+            if (type==='Income')  grpSel.value = sub==='Direct Income'   ? 'Direct Income'   : 'Indirect Income';
+            if (type==='Expense') grpSel.value = sub==='Direct Expenses' ? 'Direct Expenses' : 'Indirect Expenses';
         };
     }
 }
 
 function openAddModal() {
-    document.getElementById('acc_id').value = '';
-    document.getElementById('acc_name').value = '';
-    document.getElementById('acc_type').value = '';
-    document.getElementById('acc_ob').value = '0';
+    document.getElementById('acc_id').value      = '';
+    document.getElementById('acc_name').value    = '';
+    document.getElementById('acc_type').value    = '';
+    document.getElementById('acc_ob').value      = '0';
     document.getElementById('acc_baltype').value = 'Dr';
     document.getElementById('acc_group').innerHTML = '<option value="">— Select Group —</option>';
     document.getElementById('subTypeRow').style.display = 'none';
-    document.getElementById('accModalTitle').innerHTML = '<i class="fas fa-plus" style="color:#2563eb;margin-right:8px"></i>Add Account';
+    document.getElementById('accModalTitle').innerHTML  = '<i class="fas fa-plus" style="color:#2563eb;margin-right:8px"></i>Add Account';
     openModal('accModal');
 }
 
@@ -308,7 +355,7 @@ async function saveAccount() {
     const ob      = parseFloat(document.getElementById('acc_ob').value) || 0;
     const baltype = document.getElementById('acc_baltype').value;
 
-    if (!name || !type || !group) { showToast('Name, Type and Group are required.','error'); return; }
+    if (!name||!type||!group) { showToast('Name, Type and Group are required.','error'); return; }
 
     const payload = { name, account_type:type, group_name:group, sub_type:subtype,
                       opening_balance:ob, balance_type:baltype, updated_at:new Date().toISOString() };
@@ -316,7 +363,7 @@ async function saveAccount() {
     if (id) {
         ({ error } = await _supabase.from('accounts').update(payload).eq('id',parseInt(id)));
     } else {
-        const { data: prof } = await _supabase.auth.getUser();
+        const { data:prof } = await _supabase.auth.getUser();
         payload.created_by = prof?.user?.id;
         ({ error } = await _supabase.from('accounts').insert(payload));
     }
