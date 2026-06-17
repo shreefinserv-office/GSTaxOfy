@@ -33,7 +33,12 @@
         <main class="content-area">
             <div class="section-header">
                 <div class="page-title" style="margin:0"><i class="fas fa-receipt"></i> All Receipts</div>
-                <button class="btn btn-success" onclick="window.location.href=ROUTES.generateReceipt()"><i class="fas fa-plus"></i> New Receipt</button>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-secondary btn-sm" id="backfillBtn" onclick="backfillMissingJEs()" title="Create Journal Entries for receipts that don't have one yet">
+                        <i class="fas fa-sync-alt"></i> Sync JEs
+                    </button>
+                    <button class="btn btn-success" onclick="window.location.href=ROUTES.generateReceipt()"><i class="fas fa-plus"></i> New Receipt</button>
+                </div>
             </div>
 
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
@@ -158,6 +163,111 @@ function renderTable(receipts) {
         <td style="font-size:12px;color:#6b7280">${r.reference_no||'—'}</td>
     </tr>`).join('');
     document.getElementById('rcptFooter').innerHTML = `<strong>Showing ${receipts.length} receipt(s) — Total: <span style="color:#059669">₹${total.toLocaleString('en-IN',{minimumFractionDigits:2})}</span></strong>`;
+}
+
+// ── Receipt Journal Entry (Dr Cash/Bank | Cr Professional Receipts) ──
+async function createReceiptJournalEntry({ receiptId, receiptNo, receiptDate, amount, paymentMode, clientId, invoiceId }) {
+    try {
+        const isCash   = (paymentMode || '').toLowerCase() === 'cash';
+        const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
+
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', [drAccName, 'Professional Receipts']);
+        if (!accs || accs.length < 2) return false;
+
+        const drAcc = accs.find(a => a.name === drAccName);
+        const crAcc = accs.find(a => a.name === 'Professional Receipts');
+        if (!drAcc || !crAcc) return false;
+
+        const d  = new Date(receiptDate);
+        const yr = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+        const fy = `${yr}-${String(yr + 1).slice(-2)}`;
+
+        const { count } = await _supabase.from('journal_entries')
+            .select('id', { count: 'exact', head: true })
+            .eq('financial_year', fy).eq('entry_type', 'Receipt');
+        const jeNo = `RJV-${fy}-${String((count || 0) + 1).padStart(3, '0')}`;
+
+        const { data: prof } = await _supabase.auth.getUser();
+        const { data: entry, error: jeErr } = await _supabase.from('journal_entries').insert({
+            entry_no:       jeNo,
+            entry_date:     receiptDate,
+            entry_type:     'Receipt',
+            narration:      `Being receipt no. ${receiptNo} received via ${paymentMode}`,
+            is_auto:        true,
+            source_table:   'receipts',
+            source_id:      receiptId,
+            financial_year: fy,
+            created_by:     prof?.user?.id
+        }).select('id').single();
+        if (jeErr) { console.warn('Receipt JE header error:', jeErr.message); return false; }
+
+        const { error: lErr } = await _supabase.from('journal_lines').insert([
+            { entry_id: entry.id, account_id: drAcc.id, dr_amount: amount, cr_amount: 0,
+              receipt_id: receiptId, client_id: clientId,
+              narration: `${isCash ? 'Cash' : 'Bank'} received: ${receiptNo}` },
+            { entry_id: entry.id, account_id: crAcc.id, dr_amount: 0, cr_amount: amount,
+              receipt_id: receiptId, invoice_id: invoiceId || null,
+              narration: `Receipt: ${receiptNo}` }
+        ]);
+        if (lErr) { console.warn('Receipt JE lines error:', lErr.message); return false; }
+        return true;
+    } catch(e) {
+        console.warn('Receipt JE failed:', e.message);
+        return false;
+    }
+}
+
+// ── Backfill: create JEs for receipts that don't have one yet ──
+async function backfillMissingJEs() {
+    const btn = document.getElementById('backfillBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing…';
+
+    try {
+        // 1. All receipts
+        const { data: receipts } = await _supabase.from('receipts')
+            .select('id, receipt_no, receipt_date, amount, payment_mode, client_id, invoice_id')
+            .order('receipt_date', { ascending: true });
+
+        if (!receipts?.length) { showToast('No receipts found.', 'info'); return; }
+
+        // 2. Receipt IDs that already have a JE
+        const { data: existingJEs } = await _supabase.from('journal_entries')
+            .select('source_id').eq('source_table', 'receipts').eq('entry_type', 'Receipt');
+        const alreadyDone = new Set((existingJEs || []).map(j => j.source_id));
+
+        // 3. Filter missing
+        const missing = receipts.filter(r => !alreadyDone.has(r.id));
+        if (!missing.length) {
+            showToast('All receipts already have Journal Entries ✓', 'success');
+            return;
+        }
+
+        // 4. Create JEs
+        let created = 0, failed = 0;
+        for (const r of missing) {
+            const ok = await createReceiptJournalEntry({
+                receiptId:   r.id,
+                receiptNo:   r.receipt_no,
+                receiptDate: r.receipt_date,
+                amount:      parseFloat(r.amount || 0),
+                paymentMode: r.payment_mode,
+                clientId:    r.client_id,
+                invoiceId:   r.invoice_id
+            });
+            ok ? created++ : failed++;
+        }
+
+        const msg = `Journal Entries created: ${created}${failed ? ` | Failed: ${failed}` : ''}`;
+        showToast(msg, created > 0 ? 'success' : 'error');
+
+    } catch(e) {
+        showToast(e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Sync JEs';
+    }
 }
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{})}</script>
