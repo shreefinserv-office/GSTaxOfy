@@ -34,7 +34,12 @@
         <main class="content-area">
             <div class="section-header">
                 <div class="page-title" style="margin:0"><i class="fas fa-list"></i> All Invoices</div>
-                <button class="btn btn-primary" onclick="window.location.href=ROUTES.generateInvoice()"><i class="fas fa-plus"></i> New Invoice</button>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-secondary btn-sm" id="backfillBtn" onclick="backfillMissingJEs()" title="Create Journal Entries for invoices that don't have one yet">
+                        <i class="fas fa-sync-alt"></i> Sync JEs
+                    </button>
+                    <button class="btn btn-primary" onclick="window.location.href=ROUTES.generateInvoice()"><i class="fas fa-plus"></i> New Invoice</button>
+                </div>
             </div>
 
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
@@ -407,7 +412,7 @@ async function printInvoiceFromList(id) {
                     ${logoHtml}
                     <div>
                         <div class="inv-firm-name">${firmData.firm_name||''}</div>
-                        <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/,/g,', ')}</div>
+                        <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/\n/g,', ')}</div>
                         <div class="inv-firm-sub">${firmData.phone||''} ${firmData.email_id ? '| '+firmData.email_id : ''}</div>
                     </div>
                 </div>
@@ -454,6 +459,103 @@ async function printInvoiceFromList(id) {
 }
 
 // ── Amount to Words ───────────────────────────────────────────
+// ── Invoice Journal Entry (Dr Sundry Debtors | Cr Professional Receipts) ──
+async function createInvoiceJournalEntry({ invoiceId, invNo, invDate, total, clientId }) {
+    try {
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', ['Sundry Debtors', 'Professional Receipts']);
+        if (!accs || accs.length < 2) return false;
+        const drAcc = accs.find(a => a.name === 'Sundry Debtors');
+        const crAcc = accs.find(a => a.name === 'Professional Receipts');
+        if (!drAcc || !crAcc) return false;
+
+        const d  = new Date(invDate);
+        const yr = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+        const fy = `${yr}-${String(yr + 1).slice(-2)}`;
+
+        const { count } = await _supabase.from('journal_entries')
+            .select('id', { count:'exact', head:true })
+            .eq('financial_year', fy).eq('entry_type', 'Sales');
+        const jeNo = `SJV-${fy}-${String((count || 0) + 1).padStart(3, '0')}`;
+
+        const { data: prof } = await _supabase.auth.getUser();
+        const { data: entry, error: jeErr } = await _supabase.from('journal_entries').insert({
+            entry_no:       jeNo,
+            entry_date:     invDate,
+            entry_type:     'Sales',
+            narration:      `Being Invoice No. ${invNo} raised — professional services rendered`,
+            is_auto:        true,
+            source_table:   'invoices',
+            source_id:      invoiceId,
+            financial_year: fy,
+            created_by:     prof?.user?.id
+        }).select('id').single();
+        if (jeErr) { console.warn('JE header error:', jeErr.message); return false; }
+
+        const { error: lErr } = await _supabase.from('journal_lines').insert([
+            { entry_id:entry.id, account_id:drAcc.id, dr_amount:total, cr_amount:0,  client_id:clientId, invoice_id:invoiceId, narration:`Debtor: Invoice ${invNo}` },
+            { entry_id:entry.id, account_id:crAcc.id, dr_amount:0, cr_amount:total,  invoice_id:invoiceId, narration:`Sales: Invoice ${invNo}` }
+        ]);
+        if (lErr) { console.warn('JE lines error:', lErr.message); return false; }
+        return true;
+    } catch(e) {
+        console.warn('Invoice JE failed:', e.message);
+        return false;
+    }
+}
+
+// ── Backfill: create JEs for invoices that don't have one yet ──
+async function backfillMissingJEs() {
+    const btn = document.getElementById('backfillBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing…';
+
+    try {
+        // 1. Get all non-cancelled invoices
+        const { data: invoices } = await _supabase.from('invoices')
+            .select('id, invoice_no, invoice_date, total_amount, client_id')
+            .neq('status', 'cancelled')
+            .order('invoice_date', { ascending: true });
+
+        if (!invoices?.length) { showToast('No invoices found.', 'info'); return; }
+
+        // 2. Get invoice IDs that already have a JE
+        const { data: existingJEs } = await _supabase.from('journal_entries')
+            .select('source_id').eq('source_table', 'invoices').eq('entry_type', 'Sales');
+        const alreadyDone = new Set((existingJEs || []).map(j => j.source_id));
+
+        // 3. Filter invoices missing a JE
+        const missing = invoices.filter(inv => !alreadyDone.has(inv.id));
+
+        if (!missing.length) {
+            showToast('All invoices already have Journal Entries ✓', 'success');
+            return;
+        }
+
+        // 4. Create JEs for missing invoices one by one
+        let created = 0, failed = 0;
+        for (const inv of missing) {
+            const ok = await createInvoiceJournalEntry({
+                invoiceId: inv.id,
+                invNo:     inv.invoice_no,
+                invDate:   inv.invoice_date,
+                total:     parseFloat(inv.total_amount || 0),
+                clientId:  inv.client_id
+            });
+            ok ? created++ : failed++;
+        }
+
+        const msg = `Journal Entries created: ${created}${failed ? ` | Failed: ${failed}` : ''}`;
+        showToast(msg, created > 0 ? 'success' : 'error');
+
+    } catch(e) {
+        showToast(e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Sync JEs';
+    }
+}
+
 function amountToWords(amount) {
     const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine',
         'Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
