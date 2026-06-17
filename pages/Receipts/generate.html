@@ -355,7 +355,7 @@ async function saveReceipt() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
 
     try {
-        const { error } = await _supabase.from('receipts').insert({
+        const { data: savedReceipt, error } = await _supabase.from('receipts').insert({
             receipt_no:   no,
             receipt_date: date,
             client_id:    cid,
@@ -366,7 +366,7 @@ async function saveReceipt() {
             notes,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
-        });
+        }).select('id').single();
         if (error) throw new Error(error.message);
 
         // If full or over payment against invoice → mark invoice paid
@@ -375,6 +375,17 @@ async function saveReceipt() {
                 .update({ status: 'paid', updated_at: new Date().toISOString() })
                 .eq('id', invId);
         }
+
+        // ── Auto Journal Entry for Receipt ──────────────────────
+        await createReceiptJournalEntry({
+            receiptId: savedReceipt.id,
+            date,
+            no,
+            amount,
+            mode,
+            clientId: cid,
+            invoiceId: invId
+        });
 
         await logAudit('CREATE_RECEIPT', 'receipts', null, null, { no, amount, client_id: cid });
         refreshRcpPreview();
@@ -386,7 +397,68 @@ async function saveReceipt() {
         btn.innerHTML = '<i class="fas fa-save"></i> Save Receipt';
     }
 }
+
+// ── Auto-create Journal Entry when Receipt is saved ──────────
+async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId }) {
+    try {
+        // 1. Resolve account IDs from accounts table
+        const isCash = (mode || '').toLowerCase() === 'cash';
+        const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
+
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', [drAccName, 'Professional Receipts', 'Sundry Debtors']);
+        if (!accs || accs.length < 2) return;  // accounts not set up yet — skip silently
+
+        const drAcc     = accs.find(a => a.name === drAccName);
+        const crAcc     = accs.find(a => a.name === 'Professional Receipts');
+        const debtorAcc = accs.find(a => a.name === 'Sundry Debtors');
+        if (!drAcc || !crAcc) return;
+
+        // 2. Financial year from date
+        const d  = new Date(date);
+        const yr = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+        const fy = `${yr}-${String(yr+1).slice(-2)}`;
+
+        // 3. Auto-number the JE
+        const { count } = await _supabase.from('journal_entries')
+            .select('id', { count:'exact', head:true })
+            .eq('financial_year', fy).eq('entry_type','Receipt');
+        const jeNo = `RJV-${fy}-${String((count||0)+1).padStart(3,'0')}`;
+
+        // 4. Create journal entry header
+        const { data: prof } = await _supabase.auth.getUser();
+        const { data: entry, error: jeErr } = await _supabase.from('journal_entries').insert({
+            entry_no:      jeNo,
+            entry_date:    date,
+            entry_type:    'Receipt',
+            narration:     `Being receipt no. ${no} received via ${mode}`,
+            is_auto:       true,
+            source_table:  'receipts',
+            source_id:     receiptId,
+            financial_year: fy,
+            created_by:    prof?.user?.id
+        }).select('id').single();
+        if (jeErr) { console.warn('JE header error:', jeErr.message); return; }
+
+        // 5. Build lines:
+        // Dr: Cash/Bank A/c   (amount received increases asset)
+        // Cr: Professional Receipts A/c (income recognised)
+        // If invoice linked: also Dr Sundry Debtors offset (they were previously Dr'd when invoice raised)
+        // Simple receipt model: Dr Cash/Bank | Cr Professional Receipts
+        const lines = [
+            { entry_id:entry.id, account_id:drAcc.id,  dr_amount:amount, cr_amount:0,
+              receipt_id:receiptId, client_id:clientId  },
+            { entry_id:entry.id, account_id:crAcc.id,  dr_amount:0, cr_amount:amount,
+              receipt_id:receiptId, invoice_id:invoiceId }
+        ];
+
+        const { error: lErr } = await _supabase.from('journal_lines').insert(lines);
+        if (lErr) console.warn('JE lines error:', lErr.message);
+
+    } catch(e) {
+        console.warn('Auto JE failed (non-critical):', e.message);
+        // Non-critical: receipt is already saved, JE failure should not block the user
+    }
+}
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{})}</script>
-</body>
-</html>

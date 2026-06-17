@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GSTaxOfy — Journal Entries</title>
+<link rel="stylesheet" href="../../css/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.je-card       { background:#fff;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:12px;overflow:hidden }
+.je-header     { display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #f3f4f6;cursor:pointer }
+.je-entry-no   { font-weight:700;color:#2563eb;font-size:13px;min-width:110px }
+.je-date       { font-size:12px;color:#6b7280 }
+.je-narration  { flex:1;font-size:12px;color:#374151;font-style:italic }
+.je-type-badge { font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600 }
+.je-auto       { background:#fef3c7;color:#92400e }
+.je-manual     { background:#dbeafe;color:#1e40af }
+.je-receipt    { background:#dcfce7;color:#166534 }
+.je-lines      { display:none;padding:4px 0 }
+.je-lines.open { display:block }
+.je-line-row   { display:grid;grid-template-columns:2fr 1fr 1fr;gap:0;padding:8px 16px;font-size:12px;border-bottom:1px solid #f9fafb }
+.je-line-row:last-child { border-bottom:none }
+.je-line-acc   { color:#1f2937;font-weight:500 }
+.je-dr         { color:#2563eb;text-align:right;font-weight:600 }
+.je-cr         { color:#059669;text-align:right;font-weight:600 }
+.je-totals     { display:grid;grid-template-columns:2fr 1fr 1fr;padding:8px 16px;font-size:12px;font-weight:700;background:#f8fafc;border-top:2px solid #e5e7eb }
+.filter-row    { display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center }
+.filter-row select, .filter-row input { padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff }
+</style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-placeholder"></aside>
+    <main class="content-area">
+        <div class="section-header">
+            <div class="page-title"><i class="fas fa-book-open"></i> Journal Entries</div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                <button class="btn btn-primary btn-sm" onclick="openAddJEModal()"><i class="fas fa-plus"></i> New Entry</button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-row">
+            <select id="filterFY" onchange="loadEntries()"></select>
+            <select id="filterType" onchange="loadEntries()">
+                <option value="">All Types</option>
+                <option value="Journal">Journal</option>
+                <option value="Receipt">Receipt</option>
+                <option value="Payment">Payment</option>
+                <option value="Sales">Sales</option>
+                <option value="Contra">Contra</option>
+            </select>
+            <input type="text" id="searchJE" placeholder="Search narration…" oninput="renderEntries()" style="flex:1;min-width:180px">
+        </div>
+
+        <!-- Summary strip -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:18px">
+            <div class="card" style="padding:14px 16px">
+                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">Total Entries</div>
+                <div id="sumCount" style="font-size:22px;font-weight:800;color:#1f2937">0</div>
+            </div>
+            <div class="card" style="padding:14px 16px">
+                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">Total Dr</div>
+                <div id="sumDr" style="font-size:22px;font-weight:800;color:#2563eb">₹ 0</div>
+            </div>
+            <div class="card" style="padding:14px 16px">
+                <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">Total Cr</div>
+                <div id="sumCr" style="font-size:22px;font-weight:800;color:#059669">₹ 0</div>
+            </div>
+        </div>
+
+        <div id="jeContainer"></div>
+    </main>
+</div>
+
+<!-- Add Journal Entry Modal -->
+<div class="modal-overlay" id="jeModal" style="display:none">
+    <div class="modal-box" style="max-width:620px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-book-open" style="color:#2563eb;margin-right:8px"></i>New Journal Entry</span>
+            <button class="modal-close" onclick="closeModal('jeModal')">&times;</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="form-group">
+                <label>Entry No. *</label>
+                <input type="text" id="je_no" class="form-control" placeholder="JV-2025-001">
+            </div>
+            <div class="form-group">
+                <label>Date *</label>
+                <input type="date" id="je_date" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <select id="je_type" class="form-control">
+                    <option value="Journal">Journal</option>
+                    <option value="Payment">Payment</option>
+                    <option value="Contra">Contra</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group" style="margin-bottom:14px">
+            <label>Narration</label>
+            <input type="text" id="je_narration" class="form-control" placeholder="Being…">
+        </div>
+
+        <!-- Dr/Cr lines -->
+        <div style="margin-bottom:8px">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 36px;gap:8px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;padding:0 2px;margin-bottom:4px">
+                <span>Account</span><span style="text-align:right">Dr Amount</span><span style="text-align:right">Cr Amount</span><span></span>
+            </div>
+            <div id="jeLines"></div>
+            <button onclick="addJELine()" style="border:1.5px dashed #d1d5db;background:#f9fafb;color:#6b7280;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;width:100%;margin-top:6px">
+                <i class="fas fa-plus"></i> Add Line
+            </button>
+        </div>
+
+        <!-- Totals -->
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 36px;gap:8px;background:#f8fafc;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;font-weight:700">
+            <span style="color:#6b7280">Totals</span>
+            <span id="je_total_dr" style="text-align:right;color:#2563eb">₹ 0.00</span>
+            <span id="je_total_cr" style="text-align:right;color:#059669">₹ 0.00</span>
+            <span></span>
+        </div>
+        <div id="je_balance_warn" style="display:none;background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px">
+            <i class="fas fa-exclamation-triangle"></i> Debit and Credit totals must be equal (Accounting Rule).
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('jeModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveJournalEntry()"><i class="fas fa-save"></i> Save Entry</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script>
+let allEntries  = [];
+let allAccounts = [];
+
+const FY_LIST = ['2025-26','2026-27','2024-25','2023-24'];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    renderSidebar('journal-entries');
+    const fySelect = document.getElementById('filterFY');
+    FY_LIST.forEach(fy => fySelect.innerHTML += `<option value="${fy}" ${fy==='2025-26'?'selected':''}>${fy}</option>`);
+    await Promise.all([loadAccounts(), loadEntries()]);
+});
+
+async function loadAccounts() {
+    const { data } = await _supabase.from('accounts').select('id,name,group_name,account_type').eq('is_active',true).order('name');
+    allAccounts = data || [];
+}
+
+async function loadEntries() {
+    const fy   = document.getElementById('filterFY').value;
+    const type = document.getElementById('filterType').value;
+    let q = _supabase.from('journal_entries').select(`
+        *, journal_lines(*, accounts(name,group_name))
+    `).eq('financial_year', fy).order('entry_date', { ascending:false }).order('id', { ascending:false });
+    if (type) q = q.eq('entry_type', type);
+    const { data, error } = await q;
+    if (error) { showToast(error.message,'error'); return; }
+    allEntries = data || [];
+    renderEntries();
+}
+
+function renderEntries() {
+    const search = document.getElementById('searchJE').value.toLowerCase();
+    const filtered = search ? allEntries.filter(e => (e.narration||'').toLowerCase().includes(search) || e.entry_no.toLowerCase().includes(search)) : allEntries;
+
+    let totalDr = 0, totalCr = 0;
+    filtered.forEach(e => (e.journal_lines||[]).forEach(l => { totalDr += parseFloat(l.dr_amount||0); totalCr += parseFloat(l.cr_amount||0); }));
+    document.getElementById('sumCount').textContent = filtered.length;
+    document.getElementById('sumDr').textContent    = '₹ ' + totalDr.toFixed(2);
+    document.getElementById('sumCr').textContent    = '₹ ' + totalCr.toFixed(2);
+
+    if (!filtered.length) {
+        document.getElementById('jeContainer').innerHTML = '<div class="empty-state"><i class="fas fa-book-open" style="font-size:40px;color:#e5e7eb;margin-bottom:12px"></i><p>No journal entries found.</p></div>';
+        return;
+    }
+
+    const typeColor = { Receipt:'je-receipt', Payment:'je-auto', Journal:'je-manual', Sales:'je-receipt', Contra:'je-auto' };
+    document.getElementById('jeContainer').innerHTML = filtered.map(e => {
+        const lines = e.journal_lines || [];
+        const entryDr = lines.reduce((s,l) => s + parseFloat(l.dr_amount||0), 0);
+        const entryCr = lines.reduce((s,l) => s + parseFloat(l.cr_amount||0), 0);
+        const dateStr = new Date(e.entry_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+        return `<div class="je-card">
+            <div class="je-header" onclick="toggleJE(${e.id})">
+                <div class="je-entry-no"><i class="fas fa-chevron-right" id="chevron-${e.id}" style="font-size:10px;margin-right:6px;transition:transform .2s"></i>${e.entry_no}</div>
+                <div class="je-date">${dateStr}</div>
+                <div class="je-narration">${e.narration||''}</div>
+                <span class="je-type-badge ${typeColor[e.entry_type]||'je-manual'}">${e.entry_type}</span>
+                ${e.is_auto ? '<span class="je-type-badge je-auto" style="margin-left:4px"><i class="fas fa-robot"></i> Auto</span>' : ''}
+                <div style="text-align:right;min-width:80px;font-size:12px;font-weight:600;color:#2563eb">₹ ${entryDr.toFixed(2)}</div>
+                ${!e.is_auto ? `<button class="btn btn-danger btn-sm" style="padding:4px 8px;margin-left:8px" onclick="event.stopPropagation();deleteJE(${e.id})"><i class="fas fa-trash"></i></button>` : ''}
+            </div>
+            <div class="je-lines" id="je-lines-${e.id}">
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 16px;font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;border-bottom:1px solid #f3f4f6">
+                    <span>Account</span><span style="text-align:right">Dr</span><span style="text-align:right">Cr</span>
+                </div>
+                ${lines.map(l => `<div class="je-line-row">
+                    <div class="je-line-acc">${l.accounts?.name||'—'}<span style="font-size:10px;color:#9ca3af;margin-left:6px">(${l.accounts?.group_name||''})</span></div>
+                    <div class="je-dr">${parseFloat(l.dr_amount||0)>0 ? '₹ '+parseFloat(l.dr_amount).toFixed(2) : ''}</div>
+                    <div class="je-cr">${parseFloat(l.cr_amount||0)>0 ? '₹ '+parseFloat(l.cr_amount).toFixed(2) : ''}</div>
+                </div>`).join('')}
+                <div class="je-totals">
+                    <span style="color:#6b7280">Total</span>
+                    <span style="color:#2563eb;text-align:right">₹ ${entryDr.toFixed(2)}</span>
+                    <span style="color:#059669;text-align:right">₹ ${entryCr.toFixed(2)}</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleJE(id) {
+    const el  = document.getElementById('je-lines-'+id);
+    const chv = document.getElementById('chevron-'+id);
+    const open= el.classList.toggle('open');
+    chv.style.transform = open ? 'rotate(90deg)' : '';
+}
+
+// ── Add Journal Entry ──────────────────────────────────────────
+let jeLineCount = 0;
+
+function openAddJEModal() {
+    document.getElementById('je_no').value = '';
+    document.getElementById('je_date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('je_type').value = 'Journal';
+    document.getElementById('je_narration').value = '';
+    document.getElementById('jeLines').innerHTML = '';
+    jeLineCount = 0;
+    addJELine(); addJELine();  // start with 2 lines
+    updateJETotals();
+    openModal('jeModal');
+    autoNumberJE();
+}
+
+async function autoNumberJE() {
+    const fy = document.getElementById('filterFY').value || '2025-26';
+    const { count } = await _supabase.from('journal_entries').select('id',{count:'exact',head:true}).eq('financial_year',fy);
+    const n = String((count||0)+1).padStart(3,'0');
+    document.getElementById('je_no').value = `JV-${fy}-${n}`;
+}
+
+function buildAccountOptions(selectedId) {
+    return allAccounts.map(a => `<option value="${a.id}" ${a.id===selectedId?'selected':''}>${a.name} (${a.group_name})</option>`).join('');
+}
+
+function addJELine(accId=null, dr=0, cr=0) {
+    jeLineCount++;
+    const id = jeLineCount;
+    const row = document.createElement('div');
+    row.id = 'je-line-'+id;
+    row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 36px;gap:8px;margin-bottom:6px;align-items:center';
+    row.innerHTML = `
+        <select class="form-control" style="font-size:12px" id="jl_acc_${id}" onchange="updateJETotals()">
+            <option value="">— Account —</option>
+            ${buildAccountOptions(accId)}
+        </select>
+        <input type="number" class="form-control" id="jl_dr_${id}" value="${dr||''}" placeholder="0.00" min="0" step="0.01"
+            style="text-align:right;font-size:12px" onchange="updateJETotals()" oninput="updateJETotals()">
+        <input type="number" class="form-control" id="jl_cr_${id}" value="${cr||''}" placeholder="0.00" min="0" step="0.01"
+            style="text-align:right;font-size:12px" onchange="updateJETotals()" oninput="updateJETotals()">
+        <button onclick="removeJELine(${id})" style="background:#fee2e2;border:none;border-radius:6px;width:32px;height:32px;color:#dc2626;cursor:pointer;font-size:13px">
+            <i class="fas fa-times"></i>
+        </button>`;
+    document.getElementById('jeLines').appendChild(row);
+}
+
+function removeJELine(id) {
+    const el = document.getElementById('je-line-'+id);
+    if (el) el.remove();
+    updateJETotals();
+}
+
+function updateJETotals() {
+    let dr = 0, cr = 0;
+    document.querySelectorAll('#jeLines > div').forEach(row => {
+        const id = row.id.replace('je-line-','');
+        dr += parseFloat(document.getElementById('jl_dr_'+id)?.value||0);
+        cr += parseFloat(document.getElementById('jl_cr_'+id)?.value||0);
+    });
+    document.getElementById('je_total_dr').textContent = '₹ ' + dr.toFixed(2);
+    document.getElementById('je_total_cr').textContent = '₹ ' + cr.toFixed(2);
+    const warn = document.getElementById('je_balance_warn');
+    warn.style.display = (Math.abs(dr-cr) > 0.001 && (dr>0||cr>0)) ? '' : 'none';
+}
+
+async function saveJournalEntry() {
+    const no        = document.getElementById('je_no').value.trim();
+    const date      = document.getElementById('je_date').value;
+    const type      = document.getElementById('je_type').value;
+    const narration = document.getElementById('je_narration').value.trim();
+    const fy        = document.getElementById('filterFY').value || '2025-26';
+
+    if (!no || !date) { showToast('Entry No. and Date required.','error'); return; }
+
+    // Collect lines
+    const lines = [];
+    document.querySelectorAll('#jeLines > div').forEach(row => {
+        const id  = row.id.replace('je-line-','');
+        const acc = document.getElementById('jl_acc_'+id)?.value;
+        const dr  = parseFloat(document.getElementById('jl_dr_'+id)?.value||0);
+        const cr  = parseFloat(document.getElementById('jl_cr_'+id)?.value||0);
+        if (acc && (dr>0 || cr>0)) lines.push({ account_id:parseInt(acc), dr_amount:dr, cr_amount:cr });
+    });
+
+    if (lines.length < 2) { showToast('At least 2 lines required for a Journal Entry.','error'); return; }
+    const totalDr = lines.reduce((s,l)=>s+l.dr_amount,0);
+    const totalCr = lines.reduce((s,l)=>s+l.cr_amount,0);
+    if (Math.abs(totalDr-totalCr) > 0.001) { showToast('Debit and Credit totals must be equal.','error'); return; }
+
+    const { data: prof } = await _supabase.auth.getUser();
+    const { data: entry, error } = await _supabase.from('journal_entries').insert({
+        entry_no:no, entry_date:date, entry_type:type, narration, financial_year:fy,
+        is_auto:false, created_by:prof?.user?.id
+    }).select().single();
+
+    if (error) { showToast(error.message,'error'); return; }
+    const linePayload = lines.map(l => ({ ...l, entry_id:entry.id }));
+    const { error: le } = await _supabase.from('journal_lines').insert(linePayload);
+    if (le) { showToast(le.message,'error'); return; }
+
+    showToast('Journal Entry saved.','success');
+    closeModal('jeModal');
+    await loadEntries();
+}
+
+async function deleteJE(id) {
+    if (!confirm('Delete this journal entry permanently?')) return;
+    await _supabase.from('journal_lines').delete().eq('entry_id',id);
+    const { error } = await _supabase.from('journal_entries').delete().eq('id',id);
+    if (error) { showToast(error.message,'error'); return; }
+    showToast('Entry deleted.','success');
+    await loadEntries();
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
+</body>
+</html>

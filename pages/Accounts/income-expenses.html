@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GSTaxOfy — Income & Expenses</title>
+<link rel="stylesheet" href="../../css/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.group-section { margin-bottom:28px }
+.group-header  { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;padding:6px 0;border-bottom:2px solid #e5e7eb;margin-bottom:10px;display:flex;align-items:center;gap:8px }
+.group-dot     { width:10px;height:10px;border-radius:50%;flex-shrink:0 }
+.acc-row       { display:grid;grid-template-columns:1fr 130px 110px 110px 90px;gap:0;align-items:center;padding:10px 14px;border-radius:8px;margin-bottom:4px;border:1px solid #f3f4f6;background:#fff;font-size:13px }
+.acc-row:hover { background:#f8fafc;border-color:#e5e7eb }
+.acc-name      { font-weight:600;color:#1f2937 }
+.acc-group     { color:#6b7280;font-size:12px }
+.acc-bal       { text-align:right;font-weight:600 }
+.acc-bal.dr    { color:#2563eb }
+.acc-bal.cr    { color:#059669 }
+.acc-type-badge{ display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600 }
+.badge-income  { background:#dcfce7;color:#166534 }
+.badge-expense { background:#fee2e2;color:#991b1b }
+.badge-asset   { background:#dbeafe;color:#1e40af }
+.badge-liab    { background:#fef3c7;color:#92400e }
+.badge-capital { background:#ede9fe;color:#5b21b6 }
+.sys-lock      { color:#9ca3af;font-size:11px }
+.tab-btn       { padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#f3f4f6;color:#6b7280;transition:all .2s }
+.tab-btn.active{ background:#2563eb;color:#fff }
+.col-header    { display:grid;grid-template-columns:1fr 130px 110px 110px 90px;gap:0;padding:6px 14px;font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px }
+.col-header span:not(:first-child){ text-align:right }
+</style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-placeholder"></aside>
+    <main class="content-area">
+        <div class="section-header">
+            <div class="page-title"><i class="fas fa-coins"></i> Income &amp; Expenses</div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                <button class="btn btn-primary btn-sm" onclick="openAddModal()"><i class="fas fa-plus"></i> Add Account</button>
+            </div>
+        </div>
+
+        <!-- Tab Filter -->
+        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+            <button class="tab-btn active" id="tab-all"      onclick="setTab('all')">All Accounts</button>
+            <button class="tab-btn"        id="tab-income"   onclick="setTab('income')">Income</button>
+            <button class="tab-btn"        id="tab-expense"  onclick="setTab('expense')">Expenses</button>
+            <button class="tab-btn"        id="tab-asset"    onclick="setTab('asset')">Assets</button>
+            <button class="tab-btn"        id="tab-liability"onclick="setTab('liability')">Liabilities</button>
+            <button class="tab-btn"        id="tab-capital"  onclick="setTab('capital')">Capital</button>
+        </div>
+
+        <div id="accountsContainer"></div>
+    </main>
+</div>
+
+<!-- Add/Edit Account Modal -->
+<div class="modal-overlay" id="accModal" style="display:none">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-header">
+            <span class="modal-title" id="accModalTitle"><i class="fas fa-plus" style="color:#2563eb;margin-right:8px"></i>Add Account</span>
+            <button class="modal-close" onclick="closeModal('accModal')">&times;</button>
+        </div>
+        <input type="hidden" id="acc_id">
+        <div style="display:grid;gap:12px">
+            <div class="form-group">
+                <label>Account Name *</label>
+                <input type="text" id="acc_name" class="form-control" placeholder="e.g. Advertisement Expenses">
+            </div>
+            <div class="form-group">
+                <label>Account Type *</label>
+                <select id="acc_type" class="form-control" onchange="updateGroupOptions()">
+                    <option value="">— Select Type —</option>
+                    <option value="Income">Income</option>
+                    <option value="Expense">Expense</option>
+                    <option value="Asset">Asset</option>
+                    <option value="Liability">Liability</option>
+                    <option value="Capital">Capital</option>
+                </select>
+            </div>
+            <div class="form-group" id="subTypeRow" style="display:none">
+                <label id="subTypeLabel">Sub-Type *</label>
+                <select id="acc_subtype" class="form-control"></select>
+            </div>
+            <div class="form-group">
+                <label>Group / Category *</label>
+                <select id="acc_group" class="form-control"></select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="form-group">
+                    <label>Opening Balance (₹)</label>
+                    <input type="number" id="acc_ob" class="form-control" placeholder="0.00" step="0.01" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Balance Type</label>
+                    <select id="acc_baltype" class="form-control">
+                        <option value="Dr">Dr (Debit)</option>
+                        <option value="Cr">Cr (Credit)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="form-actions" style="margin-top:16px">
+            <button class="btn btn-secondary" onclick="closeModal('accModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveAccount()"><i class="fas fa-save"></i> Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirm -->
+<div class="modal-overlay" id="delAccModal" style="display:none">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-trash" style="color:#dc2626;margin-right:8px"></i>Delete Account</span>
+            <button class="modal-close" onclick="closeModal('delAccModal')">&times;</button>
+        </div>
+        <input type="hidden" id="del_acc_id">
+        <p style="color:#6b7280;text-align:center;margin-bottom:20px">Delete this account? This cannot be undone.</p>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('delAccModal')">Cancel</button>
+            <button class="btn btn-danger"    onclick="confirmDeleteAccount()"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script>
+let allAccounts = [];
+let currentTab  = 'all';
+
+// Group definitions with display order, colors, side
+const GROUP_META = {
+    // Income groups
+    'Direct Income':          { type:'Income',    color:'#059669', label:'Direct Income'          },
+    'Indirect Income':        { type:'Income',    color:'#10b981', label:'Indirect Income'        },
+    // Expense groups
+    'Direct Expenses':        { type:'Expense',   color:'#dc2626', label:'Direct Expenses'        },
+    'Indirect Expenses':      { type:'Expense',   color:'#f59e0b', label:'Indirect Expenses'      },
+    // Asset groups
+    'Non-Current Assets':     { type:'Asset',     color:'#2563eb', label:'Non-Current Assets'     },
+    'Investments':            { type:'Asset',     color:'#3b82f6', label:'Investments'             },
+    'Current Assets':         { type:'Asset',     color:'#60a5fa', label:'Current Assets'         },
+    'Sundry Debtors':         { type:'Asset',     color:'#93c5fd', label:'Sundry Debtors'         },
+    'Cash Account':           { type:'Asset',     color:'#bfdbfe', label:'Cash Account'           },
+    'Bank Account':           { type:'Asset',     color:'#dbeafe', label:'Bank Account'           },
+    // Liability groups
+    'Capital Account':        { type:'Capital',   color:'#7c3aed', label:'Capital Account'        },
+    'Non-Current Liabilities':{ type:'Liability', color:'#b45309', label:'Non-Current Liabilities'},
+    'Current Liabilities':    { type:'Liability', color:'#d97706', label:'Current Liabilities'    },
+};
+
+const GROUP_OPTIONS = {
+    Income:    ['Direct Income','Indirect Income'],
+    Expense:   ['Direct Expenses','Indirect Expenses'],
+    Asset:     ['Non-Current Assets','Investments','Current Assets','Sundry Debtors','Cash Account','Bank Account'],
+    Liability: ['Non-Current Liabilities','Current Liabilities'],
+    Capital:   ['Capital Account'],
+};
+const SUBTYPE_OPTIONS = {
+    Income:  ['Direct Income','Indirect Income'],
+    Expense: ['Direct Expenses','Indirect Expenses'],
+};
+const DEFAULT_BALTYPE = { Income:'Cr', Expense:'Dr', Asset:'Dr', Liability:'Cr', Capital:'Cr' };
+
+document.addEventListener('DOMContentLoaded', async () => {
+    renderSidebar('income-expenses');
+    await loadAccounts();
+});
+
+async function loadAccounts() {
+    const { data, error } = await _supabase.from('accounts').select('*').order('group_name').order('name');
+    if (error) { showToast(error.message,'error'); return; }
+    allAccounts = data || [];
+    renderAccounts();
+}
+
+function setTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+tab).classList.add('active');
+    renderAccounts();
+}
+
+function renderAccounts() {
+    const typeMap = { all:null, income:'Income', expense:'Expense', asset:'Asset', liability:'Liability', capital:'Capital' };
+    const filterType = typeMap[currentTab];
+    const filtered = filterType ? allAccounts.filter(a => a.account_type === filterType) : allAccounts;
+
+    // Group by group_name
+    const groups = {};
+    filtered.forEach(a => {
+        if (!groups[a.group_name]) groups[a.group_name] = [];
+        groups[a.group_name].push(a);
+    });
+
+    const groupOrder = Object.keys(GROUP_META);
+    const sortedGroups = Object.keys(groups).sort((a,b) => {
+        const ai = groupOrder.indexOf(a), bi = groupOrder.indexOf(b);
+        return (ai===-1?999:ai) - (bi===-1?999:bi);
+    });
+
+    let html = '';
+    if (!sortedGroups.length) { html = '<div class="empty-state"><p>No accounts found.</p></div>'; }
+
+    sortedGroups.forEach(grp => {
+        const meta  = GROUP_META[grp] || { color:'#6b7280' };
+        const rows  = groups[grp];
+        html += `<div class="group-section">
+            <div class="group-header">
+                <div class="group-dot" style="background:${meta.color}"></div>
+                ${grp} <span style="margin-left:auto;font-size:11px;color:#9ca3af">${rows.length} account${rows.length!==1?'s':''}</span>
+            </div>
+            <div class="col-header">
+                <span>Account Name</span><span>Group</span><span>Type</span><span>Opening Bal.</span><span>Actions</span>
+            </div>`;
+        rows.forEach(a => {
+            const typeClass = { Income:'badge-income', Expense:'badge-expense', Asset:'badge-asset', Liability:'badge-liab', Capital:'badge-capital' }[a.account_type] || '';
+            const balClass  = a.balance_type === 'Dr' ? 'dr' : 'cr';
+            const ob = parseFloat(a.opening_balance||0).toFixed(2);
+            html += `<div class="acc-row">
+                <div>
+                    <div class="acc-name">${a.name}</div>
+                    ${a.sub_type?`<div style="font-size:11px;color:#9ca3af">${a.sub_type}</div>`:''}
+                </div>
+                <div class="acc-group">${a.group_name}</div>
+                <div><span class="acc-type-badge ${typeClass}">${a.account_type}</span></div>
+                <div class="acc-bal ${balClass}">₹ ${ob} ${a.balance_type}</div>
+                <div style="display:flex;gap:6px;justify-content:flex-end">
+                    ${a.is_system
+                        ? `<span class="sys-lock"><i class="fas fa-lock"></i> System</span>`
+                        : `<button class="btn btn-secondary btn-sm" style="padding:4px 8px" onclick='openEditModal(${JSON.stringify(a)})'><i class="fas fa-edit"></i></button>
+                           <button class="btn btn-danger btn-sm" style="padding:4px 8px" onclick="deleteAccount(${a.id})"><i class="fas fa-trash"></i></button>`
+                    }
+                </div>
+            </div>`;
+        });
+        html += `</div>`;
+    });
+
+    document.getElementById('accountsContainer').innerHTML = html;
+}
+
+function updateGroupOptions() {
+    const type = document.getElementById('acc_type').value;
+    const grpSel = document.getElementById('acc_group');
+    const subRow  = document.getElementById('subTypeRow');
+    const subSel  = document.getElementById('acc_subtype');
+    const subLabel= document.getElementById('subTypeLabel');
+    const balSel  = document.getElementById('acc_baltype');
+
+    grpSel.innerHTML = '<option value="">— Select Group —</option>';
+    subRow.style.display = 'none';
+
+    if (!type) return;
+
+    (GROUP_OPTIONS[type]||[]).forEach(g => grpSel.innerHTML += `<option value="${g}">${g}</option>`);
+    balSel.value = DEFAULT_BALTYPE[type] || 'Dr';
+
+    if (SUBTYPE_OPTIONS[type]) {
+        subRow.style.display = '';
+        subLabel.textContent = type === 'Income' ? 'Income Type *' : 'Expense Type *';
+        subSel.innerHTML = SUBTYPE_OPTIONS[type].map(s => `<option value="${s}">${s}</option>`).join('');
+        // Auto-sync group with subtype
+        subSel.onchange = () => {
+            const sub = subSel.value;
+            if (type === 'Income')  grpSel.value = sub === 'Direct Income'    ? 'Direct Income'    : 'Indirect Income';
+            if (type === 'Expense') grpSel.value = sub === 'Direct Expenses'  ? 'Direct Expenses'  : 'Indirect Expenses';
+        };
+    }
+}
+
+function openAddModal() {
+    document.getElementById('acc_id').value = '';
+    document.getElementById('acc_name').value = '';
+    document.getElementById('acc_type').value = '';
+    document.getElementById('acc_ob').value = '0';
+    document.getElementById('acc_baltype').value = 'Dr';
+    document.getElementById('acc_group').innerHTML = '<option value="">— Select Group —</option>';
+    document.getElementById('subTypeRow').style.display = 'none';
+    document.getElementById('accModalTitle').innerHTML = '<i class="fas fa-plus" style="color:#2563eb;margin-right:8px"></i>Add Account';
+    openModal('accModal');
+}
+
+function openEditModal(acc) {
+    document.getElementById('acc_id').value      = acc.id;
+    document.getElementById('acc_name').value    = acc.name;
+    document.getElementById('acc_type').value    = acc.account_type;
+    document.getElementById('acc_ob').value      = acc.opening_balance || 0;
+    document.getElementById('acc_baltype').value = acc.balance_type || 'Dr';
+    updateGroupOptions();
+    document.getElementById('acc_group').value   = acc.group_name;
+    if (acc.sub_type) document.getElementById('acc_subtype').value = acc.sub_type;
+    document.getElementById('accModalTitle').innerHTML = '<i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Account';
+    openModal('accModal');
+}
+
+async function saveAccount() {
+    const id      = document.getElementById('acc_id').value;
+    const name    = document.getElementById('acc_name').value.trim();
+    const type    = document.getElementById('acc_type').value;
+    const group   = document.getElementById('acc_group').value;
+    const subtype = document.getElementById('acc_subtype').value || null;
+    const ob      = parseFloat(document.getElementById('acc_ob').value) || 0;
+    const baltype = document.getElementById('acc_baltype').value;
+
+    if (!name || !type || !group) { showToast('Name, Type and Group are required.','error'); return; }
+
+    const payload = { name, account_type:type, group_name:group, sub_type:subtype,
+                      opening_balance:ob, balance_type:baltype, updated_at:new Date().toISOString() };
+    let error;
+    if (id) {
+        ({ error } = await _supabase.from('accounts').update(payload).eq('id',parseInt(id)));
+    } else {
+        const { data: prof } = await _supabase.auth.getUser();
+        payload.created_by = prof?.user?.id;
+        ({ error } = await _supabase.from('accounts').insert(payload));
+    }
+    if (error) { showToast(error.message,'error'); return; }
+    showToast(id ? 'Account updated.' : 'Account created.','success');
+    closeModal('accModal');
+    await loadAccounts();
+}
+
+function deleteAccount(id) {
+    document.getElementById('del_acc_id').value = id;
+    openModal('delAccModal');
+}
+async function confirmDeleteAccount() {
+    const id = parseInt(document.getElementById('del_acc_id').value);
+    const { error } = await _supabase.from('accounts').delete().eq('id',id);
+    if (error) { showToast(error.message,'error'); return; }
+    showToast('Account deleted.','success');
+    closeModal('delAccModal');
+    await loadAccounts();
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
+</body>
+</html>

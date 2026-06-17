@@ -62,7 +62,20 @@ function renderSidebar(activePage) {
                 <a class="sub-menu-item" href="${r.accountLedger()}"><i class="fas fa-book"></i>Account Ledger</a>
                 <a class="sub-menu-item" href="${r.workLog()}"><i class="fas fa-clock"></i>Work Log</a>
                 <a class="sub-menu-item" href="${r.receivables()}"><i class="fas fa-money-bill-wave"></i>Receivables</a>
-                <a class="sub-menu-item" href="${r.profitability()}"><i class="fas fa-chart-line"></i>Profitability</a>
+                <a class="sub-menu-item${activePage==='profitability'?' active':''}" href="${r.profitability()}"><i class="fas fa-chart-line"></i>Profitability</a>
+            </div>
+        </li>
+        <li class="nav-item">
+            <div class="nav-link${(activePage==='income-expenses')?' active':''}" onclick="toggleDropdown('accounts')">
+                <i class="fas fa-coins"></i><span>Income &amp; Expenses</span>
+                <i class="fas fa-chevron-down dropdown-arrow" id="accounts-arrow"></i>
+            </div>
+            <div class="sub-menu${activePage==='income-expenses'?' open':''}" id="accounts-menu">
+                <a class="sub-menu-item${activePage==='income-expenses'?' active':''}" href="${r.incomeExpenses()}"><i class="fas fa-layer-group"></i>Chart of Accounts</a>
+                <a class="sub-menu-item${activePage==='journal-entries'?' active':''}" href="${r.journalEntries()}"><i class="fas fa-book-open"></i>Journal Entries</a>
+                <a class="sub-menu-item${activePage==='trading-account'?' active':''}" href="${r.tradingAccount()}"><i class="fas fa-exchange-alt"></i>Trading Account</a>
+                <a class="sub-menu-item${activePage==='profit-loss'?' active':''}" href="${r.profitLoss()}"><i class="fas fa-chart-line"></i>Profit &amp; Loss A/c</a>
+                <a class="sub-menu-item${activePage==='balance-sheet'?' active':''}" href="${r.balanceSheet()}"><i class="fas fa-balance-scale"></i>Balance Sheet</a>
             </div>
         </li>
         <li class="nav-item">

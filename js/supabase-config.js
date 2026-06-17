@@ -77,6 +77,11 @@ const ROUTES = {
     workLog:        () => BASE + '/pages/Reports/work-log.html',
     receivables:    () => BASE + '/pages/Reports/receivables.html',
     profitability:  () => BASE + '/pages/Reports/profitability.html',
+    incomeExpenses: () => BASE + '/pages/Accounts/income-expenses.html',
+    journalEntries: () => BASE + '/pages/Accounts/journal-entries.html',
+    tradingAccount: () => BASE + '/pages/Accounts/trading-account.html',
+    profitLoss:     () => BASE + '/pages/Accounts/profit-loss.html',
+    balanceSheet:   () => BASE + '/pages/Accounts/balance-sheet.html',
     itClients:      () => BASE + '/pages/ITax/it-clients.html',
     gstClients:     () => BASE + '/pages/GST/gst-clients.html',
 };

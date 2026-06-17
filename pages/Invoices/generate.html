@@ -383,7 +383,7 @@ async function refreshPreview() {
                 ${logoHtml}
                 <div>
                     <div class="inv-firm-name">${firmData.firm_name||''}</div>
-                    <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/,/g,', ')}</div>
+                    <div class="inv-firm-sub">${(firmData.firm_address||'').replace(/\n/g,', ')}</div>
                     <div class="inv-firm-sub">${firmData.phone||''} ${firmData.email_id ? '| '+firmData.email_id : ''}</div>
                 </div>
             </div>
@@ -469,6 +469,15 @@ async function saveInvoice() {
             await _supabase.from('invoice_tasks').insert(taskIds.map(tid => ({ invoice_id: inv.id, task_id: tid })));
         }
 
+        // Auto Journal Entry: Dr Sundry Debtors | Cr Professional Receipts
+        await createInvoiceJournalEntry({
+            invoiceId: inv.id,
+            invNo,
+            invDate,
+            total,
+            clientId: cid
+        });
+
         refreshPreview();
         showToast('Invoice saved!', 'success');
         await logAudit('CREATE_INVOICE', 'invoices', inv?.id, null, { invNo, total });
@@ -500,6 +509,77 @@ function amountToWords(amount) {
     if (n >= 1000)     result += threeDigit(Math.floor((n%100000)/1000)) + ' Thousand ';
     result += threeDigit(n%1000);
     return result.trim();
+}
+
+// ── Auto Journal Entry when Invoice is saved ─────────────────
+// Accounting rule:
+//   Dr: Sundry Debtors A/c  (client now owes us → current asset ↑)
+//   Cr: Professional Receipts A/c  (income earned → income ↑)
+async function createInvoiceJournalEntry({ invoiceId, invNo, invDate, total, clientId }) {
+    try {
+        // Fetch the two required accounts
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name')
+            .in('name', ['Sundry Debtors', 'Professional Receipts']);
+        if (!accs || accs.length < 2) return;  // Accounts not set up yet — skip silently
+
+        const drAcc = accs.find(a => a.name === 'Sundry Debtors');
+        const crAcc = accs.find(a => a.name === 'Professional Receipts');
+        if (!drAcc || !crAcc) return;
+
+        // Derive financial year from invoice date
+        const d  = new Date(invDate);
+        const yr = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+        const fy = `${yr}-${String(yr + 1).slice(-2)}`;
+
+        // Auto-number: SJV = Sales Journal Voucher
+        const { count } = await _supabase.from('journal_entries')
+            .select('id', { count: 'exact', head: true })
+            .eq('financial_year', fy)
+            .eq('entry_type', 'Sales');
+        const jeNo = `SJV-${fy}-${String((count || 0) + 1).padStart(3, '0')}`;
+
+        // Insert journal entry header
+        const { data: prof } = await _supabase.auth.getUser();
+        const { data: entry, error: jeErr } = await _supabase.from('journal_entries').insert({
+            entry_no:       jeNo,
+            entry_date:     invDate,
+            entry_type:     'Sales',
+            narration:      `Being Invoice No. ${invNo} raised — professional services rendered`,
+            is_auto:        true,
+            source_table:   'invoices',
+            source_id:      invoiceId,
+            financial_year: fy,
+            created_by:     prof?.user?.id
+        }).select('id').single();
+        if (jeErr) { console.warn('Invoice JE header error:', jeErr.message); return; }
+
+        // Insert Dr/Cr lines
+        const { error: lErr } = await _supabase.from('journal_lines').insert([
+            {
+                entry_id:   entry.id,
+                account_id: drAcc.id,       // Dr: Sundry Debtors
+                dr_amount:  total,
+                cr_amount:  0,
+                client_id:  clientId,
+                invoice_id: invoiceId,
+                narration:  `Debtor: Invoice ${invNo}`
+            },
+            {
+                entry_id:   entry.id,
+                account_id: crAcc.id,       // Cr: Professional Receipts
+                dr_amount:  0,
+                cr_amount:  total,
+                invoice_id: invoiceId,
+                narration:  `Sales: Invoice ${invNo}`
+            }
+        ]);
+        if (lErr) console.warn('Invoice JE lines error:', lErr.message);
+
+    } catch (e) {
+        console.warn('Invoice auto-JE failed (non-critical):', e.message);
+        // Non-critical: invoice already saved; JE failure must not block the user
+    }
 }
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').then(()=>console.log('[PWA] SW registered')).catch(e=>console.warn('[PWA] SW failed:',e));}</script>

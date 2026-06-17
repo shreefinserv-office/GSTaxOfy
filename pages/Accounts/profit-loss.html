@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GSTaxOfy — Profit & Loss A/c</title>
+<link rel="stylesheet" href="../../css/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.stmt-container { display:grid;grid-template-columns:1fr 1fr;gap:0;border:1.5px solid #e5e7eb;border-radius:12px;overflow:hidden }
+.stmt-side-hdr  { padding:12px 20px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px }
+.stmt-side-hdr.dr { background:#fee2e2;color:#991b1b }
+.stmt-side-hdr.cr { background:#dcfce7;color:#166534 }
+.stmt-row       { display:flex;justify-content:space-between;padding:9px 20px;font-size:13px;border-bottom:1px solid #f3f4f6 }
+.stmt-row:hover { background:#f8fafc }
+.stmt-transfer  { background:#ede9fe;border-bottom:1px solid #e5e7eb }
+.stmt-row-name  { color:#374151 }
+.stmt-row-amt   { font-weight:600;color:#1f2937 }
+.stmt-total-row { display:flex;justify-content:space-between;padding:12px 20px;font-size:14px;font-weight:800;background:#1f2937;color:#fff }
+.empty-line     { padding:9px 20px;font-size:12px;color:#d1d5db;font-style:italic }
+@media print { .sidebar,.section-header button{display:none} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-placeholder"></aside>
+    <main class="content-area">
+        <div class="section-header">
+            <div class="page-title"><i class="fas fa-chart-line"></i> Profit &amp; Loss Account</div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff"></select>
+                <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;padding:14px 18px;background:linear-gradient(135deg,#f5f3ff,#ede9fe);border:1.5px solid #c4b5fd">
+            <div style="font-size:12px;color:#5b21b6;font-weight:600"><i class="fas fa-info-circle" style="margin-right:6px"></i>P&L shows Gross Profit b/d from Trading A/c + Indirect Income, minus Indirect Expenses. Net Profit transfers to Balance Sheet.</div>
+        </div>
+        <div id="firmHeader" style="text-align:center;margin-bottom:16px"></div>
+        <div id="stmtContainer"></div>
+    </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script>
+const FY_LIST = ['2025-26','2026-27','2024-25','2023-24'];
+let firmData = {};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    renderSidebar('profit-loss');
+    const sel = document.getElementById('filterFY');
+    FY_LIST.forEach(fy => sel.innerHTML += `<option value="${fy}" ${fy==='2025-26'?'selected':''}>${fy}</option>`);
+    const { data: firm } = await _supabase.from('firm_details').select('*').single();
+    firmData = firm || {};
+    await loadData();
+});
+
+async function loadData() {
+    const fy = document.getElementById('filterFY').value;
+    const fyStart = fy.split('-')[0];
+    const startDate = `${fyStart}-04-01`;
+    const endDate   = `20${fy.split('-')[1]}-03-31`;
+
+    // 1. Compute Gross Profit from Trading A/c
+    const { data: directAccs } = await _supabase.from('accounts').select('*')
+        .in('sub_type',['Direct Income','Direct Expenses']).eq('is_active',true);
+
+    const { data: invData } = await _supabase.from('invoices')
+        .select('total_amount').neq('status','cancelled')
+        .gte('invoice_date', startDate).lte('invoice_date', endDate);
+    const professionalReceipts = (invData||[]).reduce((s,i) => s + parseFloat(i.total_amount||0), 0);
+
+    const { data: entryIds } = await _supabase.from('journal_entries').select('id').eq('financial_year', fy);
+    const ids = (entryIds||[]).map(e=>e.id);
+    let accountBalances = {};
+    if (ids.length) {
+        const { data: lines } = await _supabase.from('journal_lines')
+            .select('account_id,dr_amount,cr_amount').in('entry_id', ids);
+        (lines||[]).forEach(l => {
+            if (!accountBalances[l.account_id]) accountBalances[l.account_id] = { dr:0, cr:0 };
+            accountBalances[l.account_id].dr += parseFloat(l.dr_amount||0);
+            accountBalances[l.account_id].cr += parseFloat(l.cr_amount||0);
+        });
+    }
+
+    let totalDirectIncome = professionalReceipts, totalDirectExpenses = 0;
+    (directAccs||[]).forEach(acc => {
+        const bal = accountBalances[acc.id] || { dr:0, cr:0 };
+        const ob  = parseFloat(acc.opening_balance||0);
+        if (acc.account_type === 'Income' && acc.name !== 'Professional Receipts') {
+            totalDirectIncome += ob + bal.cr - bal.dr;
+        } else if (acc.account_type === 'Expense') {
+            totalDirectExpenses += ob + bal.dr - bal.cr;
+        }
+    });
+    const grossProfit = totalDirectIncome - totalDirectExpenses;
+
+    // 2. Indirect Income & Expenses
+    const { data: indirectAccs } = await _supabase.from('accounts').select('*')
+        .in('sub_type',['Indirect Income','Indirect Expenses']).eq('is_active',true);
+
+    const indirectIncome   = [];
+    const indirectExpenses = [];
+    (indirectAccs||[]).forEach(acc => {
+        const bal = accountBalances[acc.id] || { dr:0, cr:0 };
+        const ob  = parseFloat(acc.opening_balance||0);
+        if (acc.account_type === 'Income') {
+            indirectIncome.push({ name:acc.name, amount: ob + bal.cr - bal.dr });
+        } else {
+            indirectExpenses.push({ name:acc.name, amount: ob + bal.dr - bal.cr });
+        }
+    });
+
+    const totalIndirectIncome   = indirectIncome.reduce((s,i)=>s+i.amount,0);
+    const totalIndirectExpenses = indirectExpenses.reduce((s,i)=>s+i.amount,0);
+    const netProfit = grossProfit + totalIndirectIncome - totalIndirectExpenses;
+
+    renderStatement(grossProfit, indirectExpenses, indirectIncome, totalIndirectExpenses, totalIndirectIncome, netProfit, fy);
+}
+
+function fmt(n) { return '₹ ' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2}); }
+
+function renderStatement(grossProfit, expenses, income, totalExp, totalInc, netProfit, fy) {
+    const crTotal = (grossProfit > 0 ? grossProfit : 0) + totalInc + (netProfit < 0 ? -netProfit : 0);
+    const drTotal = (grossProfit < 0 ? -grossProfit : 0) + totalExp + (netProfit > 0 ? netProfit : 0);
+    const grandTotal = Math.max(crTotal, drTotal);
+
+    document.getElementById('firmHeader').innerHTML = `
+        <div style="font-size:18px;font-weight:800;color:#1f2937">${firmData.firm_name||''}</div>
+        <div style="font-size:13px;color:#6b7280">Profit &amp; Loss Account for the year ending 31st March ${parseInt(fy)+1}</div>`;
+
+    const drHtml = `
+        <div class="stmt-side-hdr dr"><i class="fas fa-arrow-down" style="margin-right:8px"></i>Dr Side — Expenses</div>
+        ${grossProfit < 0 ? `<div class="stmt-row stmt-transfer">
+            <div class="stmt-row-name" style="color:#991b1b;font-weight:700">Gross Loss b/d (from Trading A/c)</div>
+            <div class="stmt-row-amt" style="color:#991b1b">${fmt(-grossProfit)}</div>
+        </div>` : ''}
+        ${expenses.length ? expenses.map(r=>`<div class="stmt-row">
+            <div class="stmt-row-name">${r.name}</div>
+            <div class="stmt-row-amt">${fmt(r.amount)}</div>
+        </div>`).join('') : '<div class="empty-line">No indirect expenses recorded.</div>'}
+        ${netProfit > 0 ? `<div class="stmt-row" style="background:#dcfce7">
+            <div class="stmt-row-name" style="color:#166534;font-weight:700">Net Profit (transferred to Capital A/c)</div>
+            <div class="stmt-row-amt" style="color:#166534">${fmt(netProfit)}</div>
+        </div>` : ''}
+        <div class="stmt-total-row"><span>Total</span><span>${fmt(grandTotal)}</span></div>`;
+
+    const crHtml = `
+        <div class="stmt-side-hdr cr"><i class="fas fa-arrow-up" style="margin-right:8px"></i>Cr Side — Income</div>
+        ${grossProfit > 0 ? `<div class="stmt-row stmt-transfer" style="background:#f0fdf4">
+            <div class="stmt-row-name" style="color:#166534;font-weight:700">Gross Profit b/d (from Trading A/c)</div>
+            <div class="stmt-row-amt" style="color:#166534">${fmt(grossProfit)}</div>
+        </div>` : ''}
+        ${income.length ? income.map(r=>`<div class="stmt-row">
+            <div class="stmt-row-name">${r.name}</div>
+            <div class="stmt-row-amt">${fmt(r.amount)}</div>
+        </div>`).join('') : '<div class="empty-line">No indirect income recorded.</div>'}
+        ${netProfit < 0 ? `<div class="stmt-row" style="background:#fee2e2">
+            <div class="stmt-row-name" style="color:#991b1b;font-weight:700">Net Loss (transferred to Capital A/c)</div>
+            <div class="stmt-row-amt" style="color:#991b1b">${fmt(-netProfit)}</div>
+        </div>` : ''}
+        <div class="stmt-total-row"><span>Total</span><span>${fmt(grandTotal)}</span></div>`;
+
+    document.getElementById('stmtContainer').innerHTML = `
+        <div class="stmt-container">
+            <div class="stmt-side">${drHtml}</div>
+            <div class="stmt-side" style="border-left:1.5px solid #e5e7eb">${crHtml}</div>
+        </div>
+        <div style="text-align:center;margin-top:20px">
+            <div style="display:inline-block;min-width:280px;padding:16px 24px;border-radius:12px;background:${netProfit>=0?'#dcfce7':'#fee2e2'};border:1.5px solid ${netProfit>=0?'#86efac':'#fca5a5'}">
+                <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">${netProfit>=0?'Net Profit':'Net Loss'} for the year</div>
+                <div style="font-size:32px;font-weight:800;color:${netProfit>=0?'#166534':'#991b1b'};margin-top:4px">${fmt(netProfit)}</div>
+                <div style="font-size:11px;color:#9ca3af;margin-top:4px">Transferred to Capital Account in Balance Sheet</div>
+            </div>
+        </div>`;
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GSTaxOfy — Trading Account</title>
+<link rel="stylesheet" href="../../css/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.stmt-container { display:grid;grid-template-columns:1fr 1fr;gap:0;border:1.5px solid #e5e7eb;border-radius:12px;overflow:hidden }
+.stmt-side      { padding:0 }
+.stmt-side-hdr  { padding:12px 20px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px }
+.stmt-side-hdr.dr { background:#fee2e2;color:#991b1b }
+.stmt-side-hdr.cr { background:#dcfce7;color:#166534 }
+.stmt-row       { display:flex;justify-content:space-between;padding:9px 20px;font-size:13px;border-bottom:1px solid #f3f4f6}
+.stmt-row:hover { background:#f8fafc }
+.stmt-row-name  { color:#374151 }
+.stmt-row-amt   { font-weight:600;color:#1f2937 }
+.stmt-subtotal  { display:flex;justify-content:space-between;padding:8px 20px;font-size:12px;font-weight:700;color:#6b7280;background:#f9fafb;border-bottom:1px solid #e5e7eb }
+.stmt-total-row { display:flex;justify-content:space-between;padding:12px 20px;font-size:14px;font-weight:800;background:#1f2937;color:#fff }
+.stmt-divider   { border:none;border-right:1.5px solid #e5e7eb }
+.profit-box     { background:#dcfce7;border-radius:8px;padding:12px 20px;margin:12px;font-size:13px }
+.loss-box       { background:#fee2e2;border-radius:8px;padding:12px 20px;margin:12px;font-size:13px }
+.empty-line     { padding:9px 20px;font-size:12px;color:#d1d5db;font-style:italic }
+@media print { .sidebar,.section-header button{display:none} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-placeholder"></aside>
+    <main class="content-area">
+        <div class="section-header">
+            <div class="page-title"><i class="fas fa-exchange-alt"></i> Trading Account</div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff"></select>
+                <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;padding:14px 18px;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1.5px solid #bbf7d0">
+            <div style="font-size:12px;color:#166534;font-weight:600"><i class="fas fa-info-circle" style="margin-right:6px"></i>Trading Account shows Direct Income vs Direct Expenses. Balance transfers to Profit &amp; Loss A/c.</div>
+        </div>
+        <div id="firmHeader" style="text-align:center;margin-bottom:16px"></div>
+        <div id="stmtContainer"></div>
+    </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script>
+const FY_LIST = ['2025-26','2026-27','2024-25','2023-24'];
+let firmData = {};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    renderSidebar('trading-account');
+    const sel = document.getElementById('filterFY');
+    FY_LIST.forEach(fy => sel.innerHTML += `<option value="${fy}" ${fy==='2025-26'?'selected':''}>${fy}</option>`);
+    const { data: firm } = await _supabase.from('firm_details').select('*').single();
+    firmData = firm || {};
+    await loadData();
+});
+
+async function loadData() {
+    const fy = document.getElementById('filterFY').value;
+
+    // Get account balances from journal lines + opening balances for Direct Income & Direct Expenses
+    const { data: accounts } = await _supabase.from('accounts').select('*')
+        .in('sub_type',['Direct Income','Direct Expenses']).eq('is_active',true);
+
+    // Also get Professional Receipts from invoices (auto-calculated)
+    const fyStart = fy.split('-')[0];
+    const startDate = `${fyStart}-04-01`;
+    const endDate   = `20${fy.split('-')[1]}-03-31`;
+
+    const { data: invData } = await _supabase.from('invoices')
+        .select('total_amount,status').neq('status','cancelled')
+        .gte('invoice_date', startDate).lte('invoice_date', endDate);
+
+    const professionalReceipts = (invData||[]).reduce((s,i) => s + parseFloat(i.total_amount||0), 0);
+
+    // Get journal line balances per account for this FY
+    const { data: entryIds } = await _supabase.from('journal_entries')
+        .select('id').eq('financial_year', fy);
+    const ids = (entryIds||[]).map(e=>e.id);
+
+    let accountBalances = {};
+    if (ids.length) {
+        const { data: lines } = await _supabase.from('journal_lines')
+            .select('account_id,dr_amount,cr_amount').in('entry_id', ids);
+        (lines||[]).forEach(l => {
+            if (!accountBalances[l.account_id]) accountBalances[l.account_id] = { dr:0, cr:0 };
+            accountBalances[l.account_id].dr += parseFloat(l.dr_amount||0);
+            accountBalances[l.account_id].cr += parseFloat(l.cr_amount||0);
+        });
+    }
+
+    // Separate into Dr (expenses) and Cr (income) sides
+    const directIncome   = [];
+    const directExpenses = [];
+
+    (accounts||[]).forEach(acc => {
+        const bal = accountBalances[acc.id] || { dr:0, cr:0 };
+        const ob  = parseFloat(acc.opening_balance||0);
+        let netAmt;
+        if (acc.account_type === 'Income') {
+            netAmt = ob + bal.cr - bal.dr;
+            if (acc.name !== 'Professional Receipts') directIncome.push({ name:acc.name, amount:netAmt });
+        } else {
+            netAmt = ob + bal.dr - bal.cr;
+            directExpenses.push({ name:acc.name, amount:netAmt });
+        }
+    });
+
+    // Professional Receipts always from invoices
+    directIncome.unshift({ name:'Professional Receipts (Invoices)', amount:professionalReceipts, highlight:true });
+
+    const totalIncome   = directIncome.reduce((s,i)=>s+i.amount,0);
+    const totalExpenses = directExpenses.reduce((s,i)=>s+i.amount,0);
+    const grossProfit   = totalIncome - totalExpenses;
+
+    renderStatement(directExpenses, directIncome, totalExpenses, totalIncome, grossProfit, fy);
+}
+
+function fmt(n) { return '₹ ' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2}); }
+
+function renderStatement(expenses, income, totalExp, totalInc, grossProfit, fy) {
+    // Balance both sides with Gross Profit/Loss
+    const drRows = [...expenses];
+    const crRows = [...income];
+    const grandTotal = Math.max(totalExp + Math.max(grossProfit,0), totalInc + Math.max(-grossProfit,0));
+
+    document.getElementById('firmHeader').innerHTML = `
+        <div style="font-size:18px;font-weight:800;color:#1f2937">${firmData.firm_name||''}</div>
+        <div style="font-size:13px;color:#6b7280">Trading Account for the year ending 31st March ${parseInt(fy)+1}</div>`;
+
+    const drHtml = `
+        <div class="stmt-side-hdr dr"><i class="fas fa-arrow-down" style="margin-right:8px"></i>Dr Side — Direct Expenses</div>
+        ${drRows.length ? drRows.map(r => `<div class="stmt-row">
+            <div class="stmt-row-name">${r.name}</div>
+            <div class="stmt-row-amt">${fmt(r.amount)}</div>
+        </div>`).join('') : '<div class="empty-line">No direct expenses recorded.</div>'}
+        ${grossProfit > 0 ? `<div class="stmt-row" style="background:#dcfce7">
+            <div class="stmt-row-name" style="color:#166534;font-weight:700">Gross Profit c/d</div>
+            <div class="stmt-row-amt" style="color:#166534">${fmt(grossProfit)}</div>
+        </div>` : ''}
+        <div class="stmt-total-row"><span>Total</span><span>${fmt(grandTotal)}</span></div>`;
+
+    const crHtml = `
+        <div class="stmt-side-hdr cr"><i class="fas fa-arrow-up" style="margin-right:8px"></i>Cr Side — Direct Income</div>
+        ${crRows.map(r => `<div class="stmt-row" ${r.highlight?'style="background:#f0fdf4"':''}>
+            <div class="stmt-row-name" ${r.highlight?'style="font-weight:700;color:#166534"':''}>${r.name}</div>
+            <div class="stmt-row-amt" ${r.highlight?'style="color:#166534"':''}>${fmt(r.amount)}</div>
+        </div>`).join('')}
+        ${grossProfit < 0 ? `<div class="stmt-row" style="background:#fee2e2">
+            <div class="stmt-row-name" style="color:#991b1b;font-weight:700">Gross Loss c/d</div>
+            <div class="stmt-row-amt" style="color:#991b1b">${fmt(-grossProfit)}</div>
+        </div>` : ''}
+        <div class="stmt-total-row"><span>Total</span><span>${fmt(grandTotal)}</span></div>`;
+
+    document.getElementById('stmtContainer').innerHTML = `
+        <div class="stmt-container">
+            <div class="stmt-side">${drHtml}</div>
+            <div class="stmt-side" style="border-left:1.5px solid #e5e7eb">${crHtml}</div>
+        </div>
+        <div style="text-align:center;margin-top:20px">
+            <div class="${grossProfit>=0?'profit-box':'loss-box'}" style="display:inline-block;min-width:280px">
+                <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">${grossProfit>=0?'Gross Profit':'Gross Loss'} transferred to P&L A/c</div>
+                <div style="font-size:28px;font-weight:800;color:${grossProfit>=0?'#166534':'#991b1b'};margin-top:4px">${fmt(grossProfit)}</div>
+            </div>
+        </div>`;
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
+</body>
+</html>

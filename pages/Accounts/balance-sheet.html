@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GSTaxOfy — Balance Sheet</title>
+<link rel="stylesheet" href="../../css/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.bs-container { display:grid;grid-template-columns:1fr 1fr;gap:0;border:1.5px solid #e5e7eb;border-radius:12px;overflow:hidden }
+.bs-side-hdr  { padding:12px 20px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px }
+.bs-side-hdr.liab { background:#fef3c7;color:#92400e }
+.bs-side-hdr.asset{ background:#dbeafe;color:#1e40af }
+.bs-group-hdr { padding:8px 20px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9ca3af;background:#fafafa;border-bottom:1px solid #f3f4f6;border-top:1px solid #f3f4f6;margin-top:4px }
+.bs-row       { display:flex;justify-content:space-between;padding:8px 20px 8px 28px;font-size:13px;border-bottom:1px solid #f9fafb }
+.bs-row:hover { background:#f8fafc }
+.bs-row-name  { color:#374151 }
+.bs-row-amt   { font-weight:600;color:#1f2937 }
+.bs-subtotal  { display:flex;justify-content:space-between;padding:7px 20px;font-size:12px;font-weight:700;background:#f3f4f6;color:#6b7280;border-bottom:1px solid #e5e7eb }
+.bs-total-row { display:flex;justify-content:space-between;padding:14px 20px;font-size:14px;font-weight:800;background:#1f2937;color:#fff }
+.empty-row    { padding:8px 20px 8px 28px;font-size:12px;color:#d1d5db;font-style:italic;border-bottom:1px solid #f9fafb }
+.highlight-row{ background:#f0fdf4 }
+.highlight-row .bs-row-amt { color:#166534 }
+@media print { .sidebar,.section-header button{display:none} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar-placeholder"></aside>
+    <main class="content-area">
+        <div class="section-header">
+            <div class="page-title"><i class="fas fa-balance-scale"></i> Balance Sheet</div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff"></select>
+                <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </div>
+        <div id="firmHeader" style="text-align:center;margin-bottom:16px"></div>
+        <div id="stmtContainer"></div>
+        <div id="balanceCheck" style="margin-top:14px;text-align:center"></div>
+    </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script>
+const FY_LIST = ['2025-26','2026-27','2024-25','2023-24'];
+let firmData = {};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    renderSidebar('balance-sheet');
+    const sel = document.getElementById('filterFY');
+    FY_LIST.forEach(fy => sel.innerHTML += `<option value="${fy}" ${fy==='2025-26'?'selected':''}>${fy}</option>`);
+    const { data: firm } = await _supabase.from('firm_details').select('*').single();
+    firmData = firm || {};
+    await loadData();
+});
+
+async function loadData() {
+    const fy = document.getElementById('filterFY').value;
+    const fyStart = fy.split('-')[0];
+    const startDate = `${fyStart}-04-01`;
+    const endDate   = `20${fy.split('-')[1]}-03-31`;
+
+    // 1. Net Profit from P&L
+    const { data: directAccs } = await _supabase.from('accounts').select('*')
+        .in('sub_type',['Direct Income','Direct Expenses','Indirect Income','Indirect Expenses']).eq('is_active',true);
+    const { data: invData } = await _supabase.from('invoices')
+        .select('total_amount').neq('status','cancelled')
+        .gte('invoice_date', startDate).lte('invoice_date', endDate);
+    const professionalReceipts = (invData||[]).reduce((s,i)=>s+parseFloat(i.total_amount||0),0);
+
+    // Journal line balances
+    const { data: entryIds } = await _supabase.from('journal_entries').select('id').eq('financial_year', fy);
+    const ids = (entryIds||[]).map(e=>e.id);
+    let ab = {};   // accountBalances by account_id
+    if (ids.length) {
+        const { data: lines } = await _supabase.from('journal_lines')
+            .select('account_id,dr_amount,cr_amount').in('entry_id', ids);
+        (lines||[]).forEach(l => {
+            if (!ab[l.account_id]) ab[l.account_id] = { dr:0, cr:0 };
+            ab[l.account_id].dr += parseFloat(l.dr_amount||0);
+            ab[l.account_id].cr += parseFloat(l.cr_amount||0);
+        });
+    }
+
+    // Compute net profit
+    let totalDirectIncome = professionalReceipts, totalDirectExpenses = 0;
+    let totalIndirectIncome = 0, totalIndirectExpenses = 0;
+    (directAccs||[]).forEach(acc => {
+        const b = ab[acc.id]||{dr:0,cr:0};
+        const ob = parseFloat(acc.opening_balance||0);
+        if (acc.sub_type === 'Direct Income' && acc.name !== 'Professional Receipts')
+            totalDirectIncome   += ob + b.cr - b.dr;
+        else if (acc.sub_type === 'Direct Expenses')
+            totalDirectExpenses += ob + b.dr - b.cr;
+        else if (acc.sub_type === 'Indirect Income')
+            totalIndirectIncome += ob + b.cr - b.dr;
+        else if (acc.sub_type === 'Indirect Expenses')
+            totalIndirectExpenses += ob + b.dr - b.cr;
+    });
+    const netProfit = (totalDirectIncome - totalDirectExpenses) + totalIndirectIncome - totalIndirectExpenses;
+
+    // 2. Balance Sheet accounts
+    const { data: bsAccs } = await _supabase.from('accounts').select('*')
+        .in('account_type',['Asset','Liability','Capital']).eq('is_active',true);
+
+    // 3. Sundry Debtors = sum of unpaid invoice amounts
+    const { data: debtorData } = await _supabase.from('invoices')
+        .select('total_amount').eq('status','unpaid')
+        .gte('invoice_date', startDate).lte('invoice_date', endDate);
+    const sundryDebtors = (debtorData||[]).reduce((s,i)=>s+parseFloat(i.total_amount||0),0);
+
+    // 4. Receipts = cash/bank received (from receipts table)
+    const { data: rcptData } = await _supabase.from('receipts')
+        .select('amount,payment_mode').eq('status','received')
+        .gte('receipt_date', startDate).lte('receipt_date', endDate);
+    let cashFromReceipts = 0, bankFromReceipts = 0;
+    (rcptData||[]).forEach(r => {
+        const amt = parseFloat(r.amount||0);
+        if ((r.payment_mode||'').toLowerCase()==='cash') cashFromReceipts += amt;
+        else bankFromReceipts += amt;
+    });
+
+    // Build structure
+    const liabGroups = {
+        'Capital Account':         [],
+        'Non-Current Liabilities': [],
+        'Current Liabilities':     [],
+    };
+    const assetGroups = {
+        'Non-Current Assets': [],
+        'Investments':        [],
+        'Current Assets':     [],
+        'Sundry Debtors':     [{ name:'Sundry Debtors (Outstanding Invoices)', amount:sundryDebtors, system:true }],
+        'Cash Account':       [{ name:'Cash-in-Hand (Receipts)', amount:cashFromReceipts, system:true }],
+        'Bank Account':       [{ name:'Bank Account (Receipts)', amount:bankFromReceipts, system:true }],
+    };
+
+    (bsAccs||[]).forEach(acc => {
+        if (acc.is_system && ['Sundry Debtors','Cash-in-Hand','Bank Account'].includes(acc.name)) return;
+        const b   = ab[acc.id]||{dr:0,cr:0};
+        const ob  = parseFloat(acc.opening_balance||0);
+        let netAmt;
+        if (acc.balance_type === 'Dr') netAmt = ob + b.dr - b.cr;
+        else                           netAmt = ob + b.cr - b.dr;
+
+        if (liabGroups[acc.group_name])  liabGroups[acc.group_name].push({ name:acc.name, amount:netAmt });
+        if (assetGroups[acc.group_name]) assetGroups[acc.group_name].push({ name:acc.name, amount:netAmt });
+    });
+
+    // Add Net Profit to Capital Account
+    liabGroups['Capital Account'].push({
+        name: netProfit >= 0 ? `Add: Net Profit (${fy})` : `Less: Net Loss (${fy})`,
+        amount: netProfit,
+        highlight: true
+    });
+
+    renderBS(liabGroups, assetGroups, netProfit, fy);
+}
+
+function fmt(n) { return '₹ ' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2}); }
+
+function buildSide(groups, headerClass, headerLabel) {
+    let html = `<div class="bs-side-hdr ${headerClass}">${headerLabel}</div>`;
+    let grandTotal = 0;
+    Object.entries(groups).forEach(([grp, rows]) => {
+        if (!rows.length) return;
+        const subtotal = rows.reduce((s,r)=>s+(r.amount||0),0);
+        grandTotal += subtotal;
+        html += `<div class="bs-group-hdr">${grp}</div>`;
+        rows.forEach(r => {
+            html += `<div class="bs-row${r.highlight?' highlight-row':''}">
+                <div class="bs-row-name">${r.name}</div>
+                <div class="bs-row-amt">${fmt(r.amount)}</div>
+            </div>`;
+        });
+        html += `<div class="bs-subtotal"><span>Sub-total: ${grp}</span><span>${fmt(subtotal)}</span></div>`;
+    });
+    html += `<div class="bs-total-row"><span>Total</span><span>${fmt(grandTotal)}</span></div>`;
+    return { html, total:grandTotal };
+}
+
+function renderBS(liabGroups, assetGroups, netProfit, fy) {
+    document.getElementById('firmHeader').innerHTML = `
+        <div style="font-size:18px;font-weight:800;color:#1f2937">${firmData.firm_name||''}</div>
+        <div style="font-size:13px;color:#6b7280">Balance Sheet as on 31st March ${parseInt(fy)+1}</div>`;
+
+    const liab  = buildSide(liabGroups, 'liab', '<i class="fas fa-arrow-left" style="margin-right:8px"></i>Liabilities (Cr Side)');
+    const asset = buildSide(assetGroups,'asset','<i class="fas fa-arrow-right" style="margin-right:8px"></i>Assets (Dr Side)');
+
+    document.getElementById('stmtContainer').innerHTML = `
+        <div class="bs-container">
+            <div>${liab.html}</div>
+            <div style="border-left:1.5px solid #e5e7eb">${asset.html}</div>
+        </div>`;
+
+    const diff = Math.abs(liab.total - asset.total);
+    const balanced = diff < 1;
+    document.getElementById('balanceCheck').innerHTML = `
+        <div style="display:inline-block;padding:12px 24px;border-radius:10px;background:${balanced?'#dcfce7':'#fee2e2'};border:1.5px solid ${balanced?'#86efac':'#fca5a5'}">
+            <i class="fas fa-${balanced?'check-circle':'exclamation-triangle'}" style="color:${balanced?'#166534':'#991b1b'};margin-right:8px"></i>
+            <span style="font-weight:700;color:${balanced?'#166534':'#991b1b'}">
+                ${balanced ? 'Balance Sheet is Balanced ✓' : `Difference: ₹ ${diff.toFixed(2)} — Check entries`}
+            </span>
+        </div>`;
+}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
+</body>
+</html>
