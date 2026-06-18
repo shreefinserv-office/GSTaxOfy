@@ -72,6 +72,12 @@
                         </select>
                     </div>
                     <div class="form-group" style="grid-column:1/-1">
+                        <label>Assign To <span style="color:#9ca3af;font-weight:400">(Optional)</span></label>
+                        <select id="t_assigned_user">
+                            <option value="">— Unassigned —</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column:1/-1">
                         <label>Notes</label>
                         <textarea id="t_notes" rows="3" style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box" placeholder="Optional notes…"></textarea>
                     </div>
@@ -113,6 +119,15 @@ let clientServiceMap = {}; // client_id -> [{service_id, service}]
     const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
     if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
     await loadClients();
+    // Load users for assign dropdown
+    const { data: users } = await _supabase.from('profiles').select('id, full_name, email').order('full_name');
+    const userSel = document.getElementById('t_assigned_user');
+    (users || []).forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.full_name || u.email;
+        userSel.appendChild(opt);
+    });
 })();
 
 async function loadClients() {
@@ -181,6 +196,7 @@ async function saveTask() {
     const start_date  = document.getElementById('t_start_date').value || null;
     const status      = document.getElementById('t_status').value;
     const notes       = document.getElementById('t_notes').value.trim();
+    const assigned_user_id = document.getElementById('t_assigned_user').value || null;
 
     if (!client_id) { showToast('Please select a client.', 'error'); return; }
     if (!period)    { showToast('Period / Label is required.', 'error'); return; }
@@ -196,7 +212,7 @@ async function saveTask() {
 
     const { error } = await _supabase.from('tasks').insert({
         client_id, service_id, period_label: period, due_date, start_date,
-        status, notes, task_label,
+        status, notes, task_label, assigned_user_id,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString()
     });
 
