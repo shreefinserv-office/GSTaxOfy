@@ -104,6 +104,22 @@
     </div>
 </div>
 
+<!-- Cancel Confirm Modal -->
+<div class="modal-overlay" id="cancelInvModal">
+    <div class="modal-box" style="max-width:340px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-ban" style="color:#f59e0b;margin-right:8px"></i>Cancel Invoice</span>
+            <button class="modal-close" onclick="closeModal('cancelInvModal')">&times;</button>
+        </div>
+        <input type="hidden" id="cancel_inv_id">
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Mark this invoice as cancelled? It will be excluded from outstanding balances.</p>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('cancelInvModal')">Cancel</button>
+            <button class="btn btn-cancel-inv" onclick="confirmCancelInvoice()"><i class="fas fa-ban"></i> Yes, Cancel It</button>
+        </div>
+    </div>
+</div>
+
 <!-- Delete Confirm Modal -->
 <div class="modal-overlay" id="deleteInvModal">
     <div class="modal-box" style="max-width:340px">
@@ -368,12 +384,18 @@ async function saveEditInvoice() {
 }
 
 // ── Cancel Invoice ────────────────────────────────────────────
-async function cancelInvoice(id, currentStatus) {
+function cancelInvoice(id, currentStatus) {
     if (currentStatus === 'cancelled') { showToast('Already cancelled.', 'error'); return; }
-    if (!confirm('Mark this invoice as Cancelled?')) return;
+    document.getElementById('cancel_inv_id').value = id;
+    openModal('cancelInvModal');
+}
+
+async function confirmCancelInvoice() {
+    const id = parseInt(document.getElementById('cancel_inv_id').value);
     const { error } = await _supabase.from('invoices').update({ status:'cancelled', updated_at: new Date().toISOString() }).eq('id', id);
     if (error) { showToast(error.message, 'error'); return; }
     showToast('Invoice cancelled.', 'success');
+    closeModal('cancelInvModal');
     await loadInvoices();
 }
 
