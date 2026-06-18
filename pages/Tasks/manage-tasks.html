@@ -114,6 +114,12 @@
                 <label>For Year</label>
                 <select id="genYear"></select>
             </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Assign To <span style="color:#9ca3af;font-weight:400">(Optional — applies to all generated tasks)</span></label>
+                <select id="genAssignUser">
+                    <option value="">— Unassigned —</option>
+                </select>
+            </div>
         </div>
         <div id="genResults" class="gen-result" style="display:none"></div>
         <div class="form-actions">
@@ -229,8 +235,13 @@ const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
     }
 
     // Load users for assign dropdown
-    const { data: users } = await _supabase.from('profiles').select('id, full_name, email').order('full_name');
+    const { data: users } = await _supabase.from('user_profiles').select('id, full_name, email').eq('is_active', true).order('full_name');
     allUsers = users || [];
+
+    // Populate gen modal assign dropdown
+    const genUserSel = document.getElementById('genAssignUser');
+    genUserSel.innerHTML = '<option value="">— Unassigned —</option>' +
+        allUsers.map(u => `<option value="${u.id}">${u.full_name || u.email}</option>`).join('');
 
     await loadTasks();
 })();
@@ -428,6 +439,7 @@ async function deleteTask() {
 async function generateTasks() {
     const month = parseInt(document.getElementById('genMonth').value);
     const year  = parseInt(document.getElementById('genYear').value);
+    const assigned_user_id = document.getElementById('genAssignUser').value || null;
     const btn   = document.getElementById('genBtn');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating…';
 
@@ -517,6 +529,7 @@ async function generateTasks() {
                 start_date:   startDate.toISOString().split('T')[0],
                 task_label:   `${svc.name}${svc.description ? ' — ' + svc.description : ''}`,
                 status:       'pending',
+                assigned_user_id,
                 created_at:   new Date().toISOString(),
                 updated_at:   new Date().toISOString(),
             });
