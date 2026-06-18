@@ -152,6 +152,21 @@
         .inv-bank-grid .v { color:#1f2937;font-weight:600 }
         .inv-footer { margin-top:24px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px }
     }
+    .btn-cancel-inv {
+        background:#f59e0b;
+        color:#fff;
+        border:none;
+        transition: background-color .15s ease, transform .1s ease, box-shadow .15s ease;
+    }
+    .btn-cancel-inv:hover {
+        background:#d97706;
+        box-shadow:0 2px 6px rgba(217,119,6,.35);
+        transform: translateY(-1px);
+    }
+    .btn-cancel-inv:active {
+        background:#b45309;
+        transform: translateY(0);
+    }
 </style>
 
 <!-- Status update modal -->
@@ -300,7 +315,7 @@ function renderTable(invoices) {
         <td><span class="badge ${statusColors[inv.status]||'badge-gray'}">${(inv.status||'').charAt(0).toUpperCase()+(inv.status||'').slice(1)}</span></td>
         <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
             <button class="btn btn-secondary btn-sm" onclick="openEditModal(${inv.id})" title="Edit Invoice"><i class="fas fa-edit"></i> Edit</button>
-            <button class="btn btn-sm" style="background:#f59e0b;color:#fff;border:none" onclick="cancelInvoice(${inv.id},'${inv.status}')" title="Cancel Invoice"><i class="fas fa-ban"></i> Cancel</button>
+            <button class="btn btn-cancel-inv btn-sm" onclick="cancelInvoice(${inv.id},'${inv.status}')" title="Cancel Invoice"><i class="fas fa-ban"></i> Cancel</button>
             <button class="btn btn-sm" style="background:#2563eb;color:#fff;border:none" onclick="printInvoiceFromList(${inv.id})" title="Print / PDF"><i class="fas fa-print"></i> Print</button>
             <button class="btn btn-danger btn-sm" onclick="deleteInvoice(${inv.id})" title="Delete Invoice"><i class="fas fa-trash"></i> Delete</button>
         </td>
