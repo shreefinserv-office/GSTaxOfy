@@ -71,31 +71,31 @@
 
             <!-- Accounts Module Nav Strip -->
             <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
-                <a href="../Accounts/income-expenses.html" style="text-decoration:none">
+                <a href="income-expenses.html" style="text-decoration:none">
                     <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#0891b2'" onmouseleave="this.style.borderColor='#e5e7eb'">
                         <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#164e63,#0891b2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-coins"></i></div>
                         <div><div style="font-size:12px;font-weight:700;color:#1f2937">Income & Expenses</div><div style="font-size:10px;color:#6b7280">Chart of accounts</div></div>
                     </div>
                 </a>
-                <a href="../Accounts/journal-entries.html" style="text-decoration:none">
+                <a href="journal-entries.html" style="text-decoration:none">
                     <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:2px solid #3b82f6;background:#f0f9ff;cursor:pointer">
                         <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#1e40af,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-book-open"></i></div>
                         <div><div style="font-size:12px;font-weight:700;color:#1e40af">Journal Entries</div><div style="font-size:10px;color:#6b7280">View & manage entries</div></div>
                     </div>
                 </a>
-                <a href="../Accounts/trading-account.html" style="text-decoration:none">
+                <a href="trading-account.html" style="text-decoration:none">
                     <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#059669'" onmouseleave="this.style.borderColor='#e5e7eb'">
                         <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#065f46,#059669);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-exchange-alt"></i></div>
                         <div><div style="font-size:12px;font-weight:700;color:#1f2937">Trading Account</div><div style="font-size:10px;color:#6b7280">Direct income & expenses</div></div>
                     </div>
                 </a>
-                <a href="../Accounts/profit-loss.html" style="text-decoration:none">
+                <a href="profit-loss.html" style="text-decoration:none">
                     <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#7c3aed'" onmouseleave="this.style.borderColor='#e5e7eb'">
                         <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#5b21b6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-chart-line"></i></div>
                         <div><div style="font-size:12px;font-weight:700;color:#1f2937">Profit & Loss A/c</div><div style="font-size:10px;color:#6b7280">Indirect income & expenses</div></div>
                     </div>
                 </a>
-                <a href="../Accounts/balance-sheet.html" style="text-decoration:none">
+                <a href="balance-sheet.html" style="text-decoration:none">
                     <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#b45309'" onmouseleave="this.style.borderColor='#e5e7eb'">
                         <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#78350f,#b45309);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-balance-scale"></i></div>
                         <div><div style="font-size:12px;font-weight:700;color:#1f2937">Balance Sheet</div><div style="font-size:10px;color:#6b7280">Assets & liabilities</div></div>
@@ -180,6 +180,39 @@
         <div class="form-actions">
             <button class="btn btn-secondary" onclick="closeModal('jeModal')">Cancel</button>
             <button class="btn btn-primary" onclick="saveJournalEntry()"><i class="fas fa-save"></i> Save Entry</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit JE Modal -->
+<div class="modal-overlay" id="editJEModal">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-header">
+            <span class="modal-title"><i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Journal Entry</span>
+            <button class="modal-close" onclick="closeModal('editJEModal')">&times;</button>
+        </div>
+        <input type="hidden" id="eje_id">
+        <div style="display:grid;gap:12px">
+            <div class="form-group">
+                <label>Entry No.</label>
+                <input type="text" id="eje_no" class="form-control" readonly style="background:#f9fafb;color:#6b7280">
+            </div>
+            <div class="form-group">
+                <label>Date *</label>
+                <input type="date" id="eje_date" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Narration</label>
+                <input type="text" id="eje_narration" class="form-control" placeholder="Being…">
+            </div>
+            <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e">
+                <i class="fas fa-info-circle" style="margin-right:6px"></i>
+                Only date and narration can be edited. Dr/Cr amounts are locked to maintain accounting integrity.
+            </div>
+        </div>
+        <div class="form-actions" style="margin-top:16px">
+            <button class="btn btn-secondary" onclick="closeModal('editJEModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEditJE()"><i class="fas fa-save"></i> Save Changes</button>
         </div>
     </div>
 </div>
@@ -275,7 +308,8 @@ function renderEntries() {
                 <span class="je-badge ${badgeClass[e.entry_type]||'badge-jv'}">${e.entry_type}</span>
                 ${e.is_auto ? `<span class="je-badge badge-auto"><i class="fas fa-robot"></i> Auto</span>` : ''}
                 <span class="je-amt">${fmt(eDr)}</span>
-                ${!e.is_auto ? `<button class="btn btn-danger btn-sm" style="padding:3px 7px;margin-left:6px" onclick="event.stopPropagation();deleteJE(${e.id})"><i class="fas fa-trash"></i></button>` : ''}
+                <button class="btn btn-secondary btn-sm" style="padding:3px 7px;margin-left:6px" onclick="event.stopPropagation();openEditJEModal(${e.id})" title="Edit narration/date"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger btn-sm" style="padding:3px 7px;margin-left:4px" onclick="event.stopPropagation();deleteJE(${e.id})" title="Delete entry"><i class="fas fa-trash"></i></button>
             </div>
             <div class="je-lines" id="jel-${e.id}">
                 <div class="je-line-hdr"><span>Account</span><span style="text-align:right">Dr (₹)</span><span style="text-align:right">Cr (₹)</span></div>
@@ -395,6 +429,30 @@ async function saveJournalEntry() {
 
     showToast('Journal Entry saved.','success');
     closeModal('jeModal');
+    await loadEntries();
+}
+
+function openEditJEModal(id) {
+    const e = allEntries.find(e => e.id === id);
+    if (!e) return;
+    document.getElementById('eje_id').value        = id;
+    document.getElementById('eje_no').value        = e.entry_no;
+    document.getElementById('eje_date').value      = e.entry_date;
+    document.getElementById('eje_narration').value = e.narration || '';
+    openModal('editJEModal');
+}
+
+async function saveEditJE() {
+    const id   = parseInt(document.getElementById('eje_id').value);
+    const date = document.getElementById('eje_date').value;
+    const narr = document.getElementById('eje_narration').value.trim();
+    if (!date) { showToast('Date is required.', 'error'); return; }
+    const { error } = await _supabase.from('journal_entries')
+        .update({ entry_date: date, narration: narr, updated_at: new Date().toISOString() })
+        .eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Entry updated.', 'success');
+    closeModal('editJEModal');
     await loadEntries();
 }
 
