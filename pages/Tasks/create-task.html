@@ -120,7 +120,7 @@ let clientServiceMap = {}; // client_id -> [{service_id, service}]
     if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
     await loadClients();
     // Load users for assign dropdown
-    const { data: users } = await _supabase.from('profiles').select('id, full_name, email').order('full_name');
+    const { data: users } = await _supabase.from('user_profiles').select('id, full_name, email').eq('is_active', true).order('full_name');
     const userSel = document.getElementById('t_assigned_user');
     (users || []).forEach(u => {
         const opt = document.createElement('option');
