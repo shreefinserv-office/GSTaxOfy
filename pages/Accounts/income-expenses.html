@@ -69,6 +69,40 @@
                 </div>
             </div>
 
+
+            <!-- Accounts Module Nav Strip -->
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
+                <a href="../Accounts/income-expenses.html" style="text-decoration:none">
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:2px solid #0891b2;background:#f0f9ff;cursor:pointer">
+                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#164e63,#0891b2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-coins"></i></div>
+                        <div><div style="font-size:12px;font-weight:700;color:#0e7490">Income & Expenses</div><div style="font-size:10px;color:#6b7280">Chart of accounts</div></div>
+                    </div>
+                </a>
+                <a href="../Accounts/journal-entries.html" style="text-decoration:none">
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#2563eb'" onmouseleave="this.style.borderColor='#e5e7eb'">
+                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#1e40af,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-book-open"></i></div>
+                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Journal Entries</div><div style="font-size:10px;color:#6b7280">View & manage entries</div></div>
+                    </div>
+                </a>
+                <a href="../Accounts/trading-account.html" style="text-decoration:none">
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#059669'" onmouseleave="this.style.borderColor='#e5e7eb'">
+                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#065f46,#059669);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-exchange-alt"></i></div>
+                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Trading Account</div><div style="font-size:10px;color:#6b7280">Direct income & expenses</div></div>
+                    </div>
+                </a>
+                <a href="../Accounts/profit-loss.html" style="text-decoration:none">
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#7c3aed'" onmouseleave="this.style.borderColor='#e5e7eb'">
+                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#5b21b6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-chart-line"></i></div>
+                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Profit & Loss A/c</div><div style="font-size:10px;color:#6b7280">Indirect income & expenses</div></div>
+                    </div>
+                </a>
+                <a href="../Accounts/balance-sheet.html" style="text-decoration:none">
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#b45309'" onmouseleave="this.style.borderColor='#e5e7eb'">
+                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#78350f,#b45309);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-balance-scale"></i></div>
+                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Balance Sheet</div><div style="font-size:10px;color:#6b7280">Assets & liabilities</div></div>
+                    </div>
+                </a>
+            </div>
             <!-- Tab Filter -->
             <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
                 <button class="tab-btn active" id="tab-all"       onclick="setTab('all')">All Accounts</button>
@@ -281,11 +315,8 @@ function renderAccounts() {
                 <div style="text-align:right"><span class="type-badge ${TYPE_BADGE[a.account_type]||''}">${a.account_type}</span></div>
                 <div class="acc-bal ${balClass}">₹ ${ob} ${a.balance_type}</div>
                 <div class="acc-actions">
-                    ${a.is_system
-                        ? `<span class="sys-lock"><i class="fas fa-lock"></i> System</span>`
-                        : `<button class="btn btn-secondary btn-sm" style="padding:4px 8px" onclick='openEditModal(${JSON.stringify(a)})'><i class="fas fa-edit"></i></button>
-                           <button class="btn btn-danger btn-sm" style="padding:4px 8px" onclick="deleteAccount(${a.id})"><i class="fas fa-trash"></i></button>`
-                    }
+                    <button class="btn btn-secondary btn-sm" style="padding:4px 8px" onclick='openEditModal(${JSON.stringify(a)})'><i class="fas fa-edit"></i></button>
+                    <button class="btn btn-danger btn-sm" style="padding:4px 8px" onclick="deleteAccount(${a.id})"><i class="fas fa-trash"></i></button>
                 </div>
             </div>`;
         });
