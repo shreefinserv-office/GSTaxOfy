@@ -10,6 +10,40 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="GStaxOfy">
     <link rel="apple-touch-icon" href="../../assets/icon-192.png">
+    <style>
+        /* ── Print area exactly matches the PDF format (same as Generate Receipt) ── */
+        .rcpt-paper {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 36px 40px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 14px;
+            color: #111;
+            max-width: 560px;
+        }
+        .rcpt-firm-name  { font-size: 20px; font-weight: 700; color: #1f2937; margin-bottom: 2px; }
+        .rcpt-firm-addr  { font-size: 12px; color: #444; line-height: 1.6; margin-bottom: 2px; }
+        .rcpt-firm-phone { font-size: 12px; color: #444; }
+        .rcpt-firm-email { font-size: 12px; color: #444; margin-bottom: 16px; }
+        .rcpt-divider    { border: none; border-top: 1.5px solid #333; margin: 12px 0; }
+        .rcpt-title-row  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .rcpt-heading    { font-size: 22px; font-weight: 800; letter-spacing: 2px; color: #1f2937; }
+        .rcpt-meta       { text-align: right; font-size: 13px; color: #333; line-height: 1.8; }
+        .rcpt-body       { font-size: 14px; color: #111; line-height: 1.8; margin: 18px 0 14px; }
+        .rcpt-words      { font-size: 13px; color: #333; margin-bottom: 24px; }
+        .rcpt-sign       { font-size: 14px; font-weight: 600; color: #1f2937; margin-top: 28px; }
+        .rcpt-footer     { margin-top: 16px; font-size: 12px; color: #888; border-top: 1px solid #e5e7eb; padding-top: 10px; text-align: center; }
+
+        #printArea { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #printArea { display: block; }
+            #printArea, #printArea * { visibility: visible; }
+            #printArea { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; box-sizing: border-box; }
+            .rcpt-paper { border: none; border-radius: 0; padding: 0; box-shadow: none; }
+        }
+    </style>
 </head>
 <body>
 <div class="app-container">
@@ -61,15 +95,42 @@
             <div class="table-wrapper">
                 <table>
                     <thead>
-                        <tr><th>#</th><th>Receipt No.</th><th>Date</th><th>Client</th><th>Invoice</th><th>Amount</th><th>Mode</th><th>Ref. No.</th></tr>
+                        <tr><th>#</th><th>Receipt No.</th><th>Date</th><th>Client</th><th>Invoice</th><th>Amount</th><th>Mode</th><th>Ref. No.</th><th>Status</th><th>Actions</th></tr>
                     </thead>
                     <tbody id="rcptBody">
-                        <tr><td colspan="8" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+                        <tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
                     </tbody>
                 </table>
             </div>
             <div id="rcptFooter" style="text-align:right;padding:10px 4px;font-size:13px;color:#6b7280"></div>
         </main>
+    </div>
+</div>
+
+<!-- Hidden print area used by Print action — populated just before window.print() -->
+<div id="printArea">
+    <div class="rcpt-paper" id="receiptPrintPaper"></div>
+</div>
+
+<div class="modal-overlay" id="cancelRcptModal">
+    <div class="modal-box" style="max-width:360px">
+        <div class="modal-header"><span class="modal-title">Cancel Receipt</span><button class="modal-close" onclick="closeModal('cancelRcptModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">Are you sure you want to cancel this receipt? It will be marked as cancelled and excluded from totals.</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('cancelRcptModal')">No</button>
+            <button class="btn btn-warning" style="background:#f59e0b;color:#fff;border-color:#f59e0b" onclick="confirmCancelReceipt()">Yes, Cancel It</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="deleteRcptModal">
+    <div class="modal-box" style="max-width:360px">
+        <div class="modal-header"><span class="modal-title">Delete Receipt</span><button class="modal-close" onclick="closeModal('deleteRcptModal')">&times;</button></div>
+        <p style="color:#6b7280;margin-bottom:20px;text-align:center">This will permanently delete the receipt and its journal entry. This cannot be undone.</p>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button class="btn btn-secondary" onclick="closeModal('deleteRcptModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="confirmDeleteReceipt()">Yes, Delete</button>
+        </div>
     </div>
 </div>
 <div class="modal-overlay" id="logoutModal">
@@ -88,15 +149,15 @@
 <script src="../../js/sidebar.js"></script>
 <script src="../../js/layout.js"></script>
 <script>
-let allReceipts = [];
+let allReceipts = [], firmData = {};
 
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
     renderSidebar('receipts');
     setActiveNav();
-    const { data: firm } = await _supabase.from('firm_details').select('firm_name').single();
-    if (firm) document.getElementById('firmNameHeader').textContent = firm.firm_name;
+    const { data: firm } = await _supabase.from('firm_details').select('*').single();
+    if (firm) { firmData = firm; document.getElementById('firmNameHeader').textContent = firm.firm_name; }
     await loadReceipts();
 })();
 
@@ -112,13 +173,14 @@ async function loadReceipts() {
 }
 
 function renderStats() {
-    const total = allReceipts.reduce((s, r) => s + parseFloat(r.amount||0), 0);
+    const active = allReceipts.filter(r => !r.is_cancelled);
+    const total = active.reduce((s, r) => s + parseFloat(r.amount||0), 0);
     const byMode = {};
-    allReceipts.forEach(r => { byMode[r.payment_mode] = (byMode[r.payment_mode]||0) + parseFloat(r.amount||0); });
+    active.forEach(r => { byMode[r.payment_mode] = (byMode[r.payment_mode]||0) + parseFloat(r.amount||0); });
     const topMode = Object.entries(byMode).sort((a,b) => b[1]-a[1])[0];
     document.getElementById('rcptStats').innerHTML = `
         <div style="background:#dcfce7;border-radius:8px;padding:8px 16px;display:flex;align-items:center;gap:8px">
-            <span style="font-size:18px;font-weight:700;color:#14532d">${allReceipts.length}</span>
+            <span style="font-size:18px;font-weight:700;color:#14532d">${active.length}</span>
             <span style="font-size:12px;color:#14532d;font-weight:600">Total Receipts</span>
         </div>
         <div style="background:#dbeafe;border-radius:8px;padding:8px 16px;display:flex;align-items:center;gap:8px">
@@ -147,12 +209,14 @@ function filterReceipts() {
 function renderTable(receipts) {
     const body = document.getElementById('rcptBody');
     if (!receipts.length) {
-        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#9ca3af">No receipts found.</td></tr>';
+        body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:30px;color:#9ca3af">No receipts found.</td></tr>';
         document.getElementById('rcptFooter').textContent = '';
         return;
     }
-    const total = receipts.reduce((s,r)=>s+parseFloat(r.amount||0),0);
-    body.innerHTML = receipts.map((r,i) => `<tr>
+    const total = receipts.filter(r=>!r.is_cancelled).reduce((s,r)=>s+parseFloat(r.amount||0),0);
+    body.innerHTML = receipts.map((r,i) => {
+        const cancelled = !!r.is_cancelled;
+        return `<tr style="${cancelled ? 'opacity:0.6' : ''}">
         <td>${i+1}</td>
         <td><code style="background:#f0fdf4;padding:2px 6px;border-radius:4px;font-size:12px;color:#14532d">${r.receipt_no||'—'}</code></td>
         <td style="font-size:12px">${fmtDate(r.receipt_date)}</td>
@@ -161,8 +225,148 @@ function renderTable(receipts) {
         <td><strong style="color:#059669">₹ ${parseFloat(r.amount||0).toFixed(2)}</strong></td>
         <td><span class="badge badge-blue" style="font-size:11px">${r.payment_mode||'—'}</span></td>
         <td style="font-size:12px;color:#6b7280">${r.reference_no||'—'}</td>
-    </tr>`).join('');
+        <td>${cancelled ? '<span class="badge" style="font-size:11px;background:#fee2e2;color:#991b1b">Cancelled</span>' : '<span class="badge" style="font-size:11px;background:#dcfce7;color:#166534">Active</span>'}</td>
+        <td style="white-space:nowrap">
+            <button class="btn btn-secondary btn-sm" style="padding:4px 8px;font-size:11px" onclick="editReceipt(${r.id})" title="Edit"><i class="fas fa-edit"></i> Edit</button>
+            ${cancelled
+                ? `<button class="btn btn-sm" style="padding:4px 8px;font-size:11px;background:#fde68a;color:#92400e" onclick="restoreReceipt(${r.id})" title="Restore"><i class="fas fa-undo"></i> Restore</button>`
+                : `<button class="btn btn-warning btn-sm" style="padding:4px 8px;font-size:11px;background:#f59e0b;color:#fff;border-color:#f59e0b" onclick="openCancelModal(${r.id})" title="Cancel"><i class="fas fa-ban"></i> Cancel</button>`}
+            <button class="btn btn-sm" style="padding:4px 8px;font-size:11px;background:#2563eb;color:#fff" onclick="printReceiptRow(${r.id})" title="Print"><i class="fas fa-print"></i> Print</button>
+            <button class="btn btn-danger btn-sm" style="padding:4px 8px;font-size:11px" onclick="openDeleteModal(${r.id})" title="Delete"><i class="fas fa-trash"></i> Delete</button>
+        </td>
+    </tr>`;
+    }).join('');
     document.getElementById('rcptFooter').innerHTML = `<strong>Showing ${receipts.length} receipt(s) — Total: <span style="color:#059669">₹${total.toLocaleString('en-IN',{minimumFractionDigits:2})}</span></strong>`;
+}
+
+// ── Edit ──────────────────────────────────────────────────────
+function editReceipt(id) {
+    window.location.href = ROUTES.generateReceipt() + '?id=' + id;
+}
+
+// ── Cancel / Restore ─────────────────────────────────────────
+let pendingCancelId = null, pendingDeleteId = null;
+
+function openCancelModal(id) {
+    pendingCancelId = id;
+    document.getElementById('cancelRcptModal').classList.add('active');
+}
+
+async function confirmCancelReceipt() {
+    if (!pendingCancelId) return;
+    try {
+        const { error } = await _supabase.from('receipts')
+            .update({ is_cancelled: true, updated_at: new Date().toISOString() })
+            .eq('id', pendingCancelId);
+        if (error) throw new Error(error.message);
+        await logAudit('CANCEL_RECEIPT', 'receipts', pendingCancelId, null, null);
+        showToast('Receipt cancelled.', 'success');
+        closeModal('cancelRcptModal');
+        await loadReceipts();
+    } catch (e) {
+        showToast(e.message, 'error');
+    } finally {
+        pendingCancelId = null;
+    }
+}
+
+async function restoreReceipt(id) {
+    try {
+        const { error } = await _supabase.from('receipts')
+            .update({ is_cancelled: false, updated_at: new Date().toISOString() })
+            .eq('id', id);
+        if (error) throw new Error(error.message);
+        await logAudit('RESTORE_RECEIPT', 'receipts', id, null, null);
+        showToast('Receipt restored.', 'success');
+        await loadReceipts();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+// ── Print (same layout as Generate Receipt page) ─────────────
+function amountToWords(amount) {
+    const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
+        'Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+    const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+    function t(n) { return n < 20 ? ones[n] : tens[Math.floor(n/10)] + (n%10 ? ' ' + ones[n%10] : ''); }
+    function h(n) { return n >= 100 ? ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' ' + t(n%100) : '') : t(n); }
+    const n = Math.floor(amount);
+    if (!n) return 'Zero';
+    let r = '';
+    if (n >= 10000000) r += h(Math.floor(n/10000000)) + ' Crore ';
+    if (n >= 100000)   r += h(Math.floor((n%10000000)/100000)) + ' Lakh ';
+    if (n >= 1000)     r += h(Math.floor((n%100000)/1000)) + ' Thousand ';
+    return (r + h(n%1000)).trim();
+}
+
+function printReceiptRow(id) {
+    const r = allReceipts.find(x => x.id === id);
+    if (!r) { showToast('Receipt not found.', 'error'); return; }
+
+    const [y, m, d] = (r.receipt_date || '').split('-');
+    const dateStr = (y && m && d) ? `${d}/${m}/${y}` : (r.receipt_date || '');
+    const amount = parseFloat(r.amount || 0);
+    const invNo  = r.invoices?.invoice_no || '';
+    const invPart = invNo ? ` against Invoice No. ${invNo}` : '';
+    const refPart = r.reference_no ? ` (Ref: ${r.reference_no})` : '';
+    const bodyText = `Received from <strong>${r.clients?.name || ''}</strong> amount of <strong>₹${amount.toFixed(2)}</strong> by <strong>${r.payment_mode || ''}</strong>${refPart}${invPart}.`;
+
+    document.getElementById('receiptPrintPaper').innerHTML = `
+        <div class="rcpt-firm-name">${firmData.firm_name || ''}</div>
+        <div class="rcpt-firm-addr">${(firmData.firm_address || '').replace(/\n/g, '<br>')}</div>
+        ${firmData.phone ? `<div class="rcpt-firm-phone">${firmData.phone}${firmData.email_id ? ' | ' + firmData.email_id : ''}</div>` : ''}
+        <hr class="rcpt-divider">
+        <div class="rcpt-title-row">
+            <div class="rcpt-heading">Receipt${r.is_cancelled ? ' (CANCELLED)' : ''}</div>
+            <div class="rcpt-meta">
+                <div><strong>Receipt No.:</strong> ${r.receipt_no || ''}</div>
+                <div><strong>Date:</strong> ${dateStr}</div>
+            </div>
+        </div>
+        <hr class="rcpt-divider">
+        <div class="rcpt-body">${bodyText}</div>
+        <div class="rcpt-words"><strong>Amount in Words:</strong> ${amountToWords(amount)} Rupees Only</div>
+        ${r.notes ? `<div style="font-size:13px;color:#444;margin-bottom:12px">${r.notes}</div>` : ''}
+        <div class="rcpt-sign">For ${firmData.firm_name || ''}</div>
+        <div class="rcpt-footer">
+            Thank You.<br>
+            This is computer generated receipt no signature required.
+        </div>`;
+
+    setTimeout(() => window.print(), 150);
+}
+
+// ── Delete ────────────────────────────────────────────────────
+function openDeleteModal(id) {
+    pendingDeleteId = id;
+    document.getElementById('deleteRcptModal').classList.add('active');
+}
+
+async function confirmDeleteReceipt() {
+    if (!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    try {
+        // Remove dependent journal lines/entry first (if linked)
+        const { data: je } = await _supabase.from('journal_entries')
+            .select('id').eq('source_table', 'receipts').eq('source_id', id).maybeSingle();
+        if (je) {
+            await _supabase.from('journal_lines').delete().eq('entry_id', je.id);
+            await _supabase.from('journal_entries').delete().eq('id', je.id);
+        }
+
+        const { error } = await _supabase.from('receipts').delete().eq('id', id);
+        if (error) throw new Error(error.message);
+
+        await logAudit('DELETE_RECEIPT', 'receipts', id, null, null);
+        showToast('Receipt deleted.', 'success');
+        closeModal('deleteRcptModal');
+        await loadReceipts();
+    } catch (e) {
+        showToast(e.message, 'error');
+    } finally {
+        pendingDeleteId = null;
+    }
 }
 
 // ── Receipt Journal Entry (Dr Cash/Bank | Cr Professional Receipts) ──
