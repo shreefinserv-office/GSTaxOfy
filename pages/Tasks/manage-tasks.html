@@ -125,27 +125,55 @@
 
 <!-- Edit Task Modal -->
 <div class="modal-overlay" id="editTaskModal">
-    <div class="modal-box" style="max-width:480px">
+    <div class="modal-box" style="max-width:560px">
         <div class="modal-header">
-            <span class="modal-title"><i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Update Task</span>
+            <span class="modal-title"><i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Task</span>
             <button class="modal-close" onclick="closeModal('editTaskModal')">&times;</button>
         </div>
         <input type="hidden" id="et_id">
-        <div class="form-group" style="margin-bottom:14px">
-            <label>Status</label>
-            <select id="et_status">
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-            </select>
-        </div>
-        <div class="form-group" style="margin-bottom:14px">
-            <label>Notes</label>
-            <textarea id="et_notes" rows="3" style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box"></textarea>
+        <div class="form-grid">
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Client</label>
+                <input type="text" id="et_client_name" disabled style="background:#f9fafb;color:#6b7280">
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Service</label>
+                <input type="text" id="et_service_name" disabled style="background:#f9fafb;color:#6b7280">
+            </div>
+            <div class="form-group">
+                <label>Period / Label *</label>
+                <input type="text" id="et_period" placeholder="e.g. May 2026, FY 2025-26">
+            </div>
+            <div class="form-group">
+                <label>Due Date *</label>
+                <input type="date" id="et_due_date">
+            </div>
+            <div class="form-group">
+                <label>Start Date</label>
+                <input type="date" id="et_start_date">
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select id="et_status">
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Assign To <span style="color:#9ca3af;font-weight:400">(Optional)</span></label>
+                <select id="et_assigned_user">
+                    <option value="">— Unassigned —</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column:1/-1">
+                <label>Notes</label>
+                <textarea id="et_notes" rows="3" style="resize:vertical;padding:10px 14px;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;box-sizing:border-box"></textarea>
+            </div>
         </div>
         <div class="form-actions">
             <button class="btn btn-secondary" onclick="closeModal('editTaskModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="saveTaskStatus()"><i class="fas fa-save"></i> Save</button>
+            <button class="btn btn-primary" onclick="saveTaskEdit()"><i class="fas fa-save"></i> Save Changes</button>
         </div>
     </div>
 </div>
@@ -180,6 +208,7 @@
 <script src="../../js/layout.js"></script>
 <script>
 let allTasks = [];
+let allUsers = [];
 let deleteTargetTaskId = null;
 const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -198,6 +227,10 @@ const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
     for (let y = now.getFullYear() - 1; y <= now.getFullYear() + 1; y++) {
         yrSel.innerHTML += `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`;
     }
+
+    // Load users for assign dropdown
+    const { data: users } = await _supabase.from('profiles').select('id, full_name, email').order('full_name');
+    allUsers = users || [];
 
     await loadTasks();
 })();
@@ -280,11 +313,13 @@ function renderTasks(tasks) {
         el.innerHTML = '<div style="text-align:center;padding:40px;color:#9ca3af"><i class="fas fa-check-circle" style="font-size:36px;display:block;margin-bottom:10px;color:#d1d5db"></i>No tasks found.</div>';
         return;
     }
-    el.innerHTML = '<div class="table-wrapper"><table><thead><tr><th>#</th><th>Client</th><th>Service</th><th>Period</th><th>Due Date</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
+    el.innerHTML = '<div class="table-wrapper"><table><thead><tr><th>#</th><th>Client</th><th>Service</th><th>Period</th><th>Due Date</th><th>Status</th><th>Assigned To</th><th>Notes</th><th>Actions</th></tr></thead><tbody>' +
         tasks.map((t, i) => {
             const effStatus = t._overdue ? 'overdue' : t.status;
             const statusLabel = { pending:'Pending', in_progress:'In Progress', completed:'Completed', overdue:'Overdue' };
             const svcLabel = t.services ? (t.services.description ? `${t.services.name} — ${t.services.description}` : t.services.name) : (t.task_label||'—');
+            const assignedUser = allUsers.find(u => u.id === t.assigned_user_id);
+            const assignedLabel = assignedUser ? (assignedUser.full_name || assignedUser.email) : '—';
             return `<tr class="${t._overdue?'overdue-row':''}">
                 <td>${i+1}</td>
                 <td><strong>${t.clients?.name||'—'}</strong></td>
@@ -292,10 +327,14 @@ function renderTasks(tasks) {
                 <td style="font-size:12px;color:#6b7280">${t.period_label||'—'}</td>
                 <td style="font-size:12px;white-space:nowrap">${fmtDate(t.due_date)}</td>
                 <td><span class="status-badge status-${effStatus}">${statusLabel[effStatus]||effStatus}</span></td>
+                <td style="font-size:12px;color:#6b7280">${assignedLabel}</td>
                 <td style="font-size:12px;color:#6b7280;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.notes||''}">${t.notes||'—'}</td>
                 <td style="white-space:nowrap">
-                    ${t.status !== 'completed' ? `<button class="btn btn-success btn-sm" onclick="markComplete(${t.id})" title="Mark Completed" style="margin-right:4px"><i class="fas fa-check"></i> Done</button>` : `<span style="font-size:11px;color:#16a34a;font-weight:600;margin-right:6px"><i class="fas fa-check-circle"></i> Done</span>`}
-                    <button class="btn btn-secondary btn-sm" onclick="openEditTask(${t.id},'${t.status}',${JSON.stringify(t.notes||'').replace(/'/g,"\\'")})" title="Edit"><i class="fas fa-edit"></i></button>
+                    ${t.status !== 'completed'
+                        ? `<button class="btn btn-success btn-sm" onclick="markComplete(${t.id})" title="Mark Completed" style="margin-right:4px"><i class="fas fa-check"></i> Done</button>`
+                        : `<button class="btn btn-secondary btn-sm" onclick="markUndone(${t.id})" title="Mark as Pending" style="margin-right:4px;background:#f3f4f6;color:#374151;border:1.5px solid #d1d5db"><i class="fas fa-undo"></i> Undone</button>`
+                    }
+                    <button class="btn btn-secondary btn-sm" onclick="openEditTask(${t.id})" title="Edit"><i class="fas fa-edit"></i></button>
                     <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="openDeleteTask(${t.id})" title="Delete"><i class="fas fa-trash"></i></button>
                 </td>
             </tr>`;
@@ -313,20 +352,58 @@ async function markComplete(id) {
     await loadTasks();
 }
 
-function openEditTask(id, status, notes) {
+async function markUndone(id) {
+    const { error } = await _supabase.from('tasks').update({
+        status: 'pending',
+        updated_at: new Date().toISOString()
+    }).eq('id', id);
+    if (error) { showToast(error.message, 'error'); return; }
+    showToast('Task marked as pending.', 'success');
+    await loadTasks();
+}
+
+function openEditTask(id) {
+    const t = allTasks.find(t => t.id === id);
+    if (!t) return;
+
     document.getElementById('et_id').value = id;
-    document.getElementById('et_status').value = status;
-    document.getElementById('et_notes').value = notes || '';
+    document.getElementById('et_client_name').value = t.clients?.name || '—';
+    const svcLabel = t.services ? (t.services.description ? `${t.services.name} — ${t.services.description}` : t.services.name) : (t.task_label || '—');
+    document.getElementById('et_service_name').value = svcLabel;
+    document.getElementById('et_period').value = t.period_label || '';
+    document.getElementById('et_due_date').value = t.due_date || '';
+    document.getElementById('et_start_date').value = t.start_date || '';
+    document.getElementById('et_status').value = t.status || 'pending';
+    document.getElementById('et_notes').value = t.notes || '';
+
+    // Populate users dropdown
+    const userSel = document.getElementById('et_assigned_user');
+    userSel.innerHTML = '<option value="">— Unassigned —</option>' +
+        allUsers.map(u => `<option value="${u.id}" ${t.assigned_user_id === u.id ? 'selected' : ''}>${u.full_name || u.email}</option>`).join('');
+
     openModal('editTaskModal');
 }
 
-async function saveTaskStatus() {
-    const id     = parseInt(document.getElementById('et_id').value);
-    const status = document.getElementById('et_status').value;
-    const notes  = document.getElementById('et_notes').value.trim();
-    const { error } = await _supabase.from('tasks').update({ status, notes, updated_at: new Date().toISOString() }).eq('id', id);
+async function saveTaskEdit() {
+    const id             = parseInt(document.getElementById('et_id').value);
+    const period         = document.getElementById('et_period').value.trim();
+    const due_date       = document.getElementById('et_due_date').value;
+    const start_date     = document.getElementById('et_start_date').value || null;
+    const status         = document.getElementById('et_status').value;
+    const notes          = document.getElementById('et_notes').value.trim();
+    const assigned_user_id = document.getElementById('et_assigned_user').value || null;
+
+    if (!period)   { showToast('Period / Label is required.', 'error'); return; }
+    if (!due_date) { showToast('Due date is required.', 'error'); return; }
+
+    const { error } = await _supabase.from('tasks').update({
+        period_label: period, due_date, start_date, status, notes,
+        assigned_user_id,
+        updated_at: new Date().toISOString()
+    }).eq('id', id);
+
     if (error) { showToast(error.message, 'error'); return; }
-    showToast('Task updated.', 'success');
+    showToast('Task updated successfully.', 'success');
     closeModal('editTaskModal');
     await loadTasks();
 }
