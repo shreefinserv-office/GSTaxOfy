@@ -64,7 +64,7 @@
         <aside class="sidebar" id="sidebar-placeholder"></aside>
         <main class="content-area">
             <div class="section-header">
-                <div class="page-title" style="margin:0"><i class="fas fa-receipt"></i> Generate Receipt</div>
+                <div class="page-title" style="margin:0" id="pageTitle"><i class="fas fa-receipt"></i> Generate Receipt</div>
                 <button class="btn btn-secondary" onclick="window.location.href=ROUTES.receiptList()"><i class="fas fa-list"></i> All Receipts</button>
             </div>
 
@@ -140,7 +140,7 @@
 
                     <div style="display:flex;gap:8px">
                         <button class="btn btn-secondary" style="flex:1" onclick="refreshRcpPreview()"><i class="fas fa-eye"></i> Preview</button>
-                        <button class="btn btn-success" style="flex:1" id="saveRcpBtn" onclick="saveReceipt()"><i class="fas fa-save"></i> Save Receipt</button>
+                        <button class="btn btn-success" style="flex:1" id="saveRcpBtn" onclick="saveReceipt()"><i class="fas fa-save"></i> <span id="saveBtnLabel">Save Receipt</span></button>
                     </div>
                 </div>
 
@@ -184,12 +184,16 @@
 <script src="../../js/layout.js"></script>
 <script>
 let allClients = [], firmData = {}, clientInvoices = [];
+let editId = null, editingReceipt = null;
 
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
     renderSidebar('generate-receipt');
     setActiveNav();
+
+    const params = new URLSearchParams(window.location.search);
+    editId = parseInt(params.get('id')) || null;
 
     document.getElementById('rcp_date').value = new Date().toISOString().split('T')[0];
 
@@ -204,13 +208,62 @@ let allClients = [], firmData = {}, clientInvoices = [];
     allClients = clients || [];
     allClients.forEach(c => document.getElementById('rcp_client').innerHTML += `<option value="${c.id}">${c.name}</option>`);
 
-    // Auto receipt number: RC + YYYY + /NNN
-    const { count } = await _supabase.from('receipts').select('id', { count: 'exact', head: true });
-    const now = new Date();
-    const fy  = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-    const fyStr = String(fy).slice(2) + String(fy + 1).slice(2);
-    document.getElementById('rcp_no').value = `RC${fyStr}/${String((count || 0) + 1).padStart(3, '0')}`;
+    if (editId) {
+        await loadReceiptForEdit(editId);
+    } else {
+        // Auto receipt number: RC + YYYY + /NNN
+        const { count } = await _supabase.from('receipts').select('id', { count: 'exact', head: true });
+        const now = new Date();
+        const fy  = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        const fyStr = String(fy).slice(2) + String(fy + 1).slice(2);
+        document.getElementById('rcp_no').value = `RC${fyStr}/${String((count || 0) + 1).padStart(3, '0')}`;
+    }
 })();
+
+async function loadReceiptForEdit(id) {
+    const { data: r, error } = await _supabase
+        .from('receipts')
+        .select('*, clients(name), invoices(id,invoice_no,total_amount)')
+        .eq('id', id)
+        .single();
+    if (error || !r) { showToast('Receipt not found.', 'error'); return; }
+    editingReceipt = r;
+
+    // Switch page into edit mode visually
+    document.getElementById('pageTitle').innerHTML = '<i class="fas fa-receipt"></i> Edit Receipt';
+    document.getElementById('saveBtnLabel').textContent = 'Update Receipt';
+
+    document.getElementById('rcp_no').value     = r.receipt_no || '';
+    document.getElementById('rcp_no').readOnly  = true; // keep receipt no. stable once created
+    document.getElementById('rcp_no').style.background = '#f3f4f6';
+    document.getElementById('rcp_date').value   = r.receipt_date || '';
+    document.getElementById('rcp_client').value = r.client_id || '';
+    document.getElementById('rcp_amount').value = r.amount || '';
+    document.getElementById('rcp_mode').value    = r.payment_mode || 'Cash';
+    document.getElementById('rcp_ref').value     = r.reference_no || '';
+    document.getElementById('rcp_notes').value   = r.notes || '';
+
+    // Load this client's unpaid invoices, then make sure the receipt's
+    // own linked invoice is present too (even if it's since been marked paid).
+    await onRcpClientChange();
+    if (r.invoice_id) {
+        const sel = document.getElementById('rcp_invoice');
+        let opt = Array.from(sel.options).find(o => parseInt(o.value) === r.invoice_id);
+        if (!opt && r.invoices) {
+            opt = document.createElement('option');
+            opt.value = r.invoices.id;
+            opt.dataset.no  = r.invoices.invoice_no;
+            opt.dataset.amt = r.invoices.total_amount;
+            opt.textContent = `${r.invoices.invoice_no} — ₹${parseFloat(r.invoices.total_amount).toFixed(2)}`;
+            sel.appendChild(opt);
+        }
+        sel.value = r.invoice_id;
+        document.getElementById('invPickerSection').style.display = 'block';
+        calcBalance();
+    }
+
+    refreshRcpPreview();
+}
 
 async function onRcpClientChange() {
     const cid = parseInt(document.getElementById('rcp_client').value);
@@ -351,23 +404,55 @@ async function saveReceipt() {
     if (!amount) { showToast('Enter amount received.', 'error'); return; }
 
     const btn = document.getElementById('saveRcpBtn');
+    const btnLabel = document.getElementById('saveBtnLabel');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+    btn.querySelector('i').className = 'fas fa-spinner fa-spin';
+    btnLabel.textContent = editId ? 'Updating…' : 'Saving…';
 
     try {
-        const { data: savedReceipt, error } = await _supabase.from('receipts').insert({
-            receipt_no:   no,
-            receipt_date: date,
-            client_id:    cid,
-            invoice_id:   invId,
-            amount,
-            payment_mode: mode,
-            reference_no: ref,
-            notes,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-        }).select('id').single();
-        if (error) throw new Error(error.message);
+        let receiptId;
+
+        if (editId) {
+            // ── UPDATE existing receipt ──
+            const { error } = await _supabase.from('receipts').update({
+                receipt_date: date,
+                client_id:    cid,
+                invoice_id:   invId,
+                amount,
+                payment_mode: mode,
+                reference_no: ref,
+                notes,
+                updated_at: new Date().toISOString()
+            }).eq('id', editId);
+            if (error) throw new Error(error.message);
+            receiptId = editId;
+
+            // Keep the linked journal entry's lines in sync with the new amount/mode
+            await syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId: cid, invoiceId: invId });
+
+            await logAudit('UPDATE_RECEIPT', 'receipts', editId, null, { no, amount, client_id: cid });
+        } else {
+            // ── INSERT new receipt ──
+            const { data: savedReceipt, error } = await _supabase.from('receipts').insert({
+                receipt_no:   no,
+                receipt_date: date,
+                client_id:    cid,
+                invoice_id:   invId,
+                amount,
+                payment_mode: mode,
+                reference_no: ref,
+                notes,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            }).select('id').single();
+            if (error) throw new Error(error.message);
+            receiptId = savedReceipt.id;
+
+            // ── Auto Journal Entry for new Receipt ──
+            await createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId: cid, invoiceId: invId });
+
+            await logAudit('CREATE_RECEIPT', 'receipts', null, null, { no, amount, client_id: cid });
+        }
 
         // If full or over payment against invoice → mark invoice paid
         if (invId && invAmt && amount >= invAmt) {
@@ -376,29 +461,68 @@ async function saveReceipt() {
                 .eq('id', invId);
         }
 
-        // ── Auto Journal Entry for Receipt ──────────────────────
-        await createReceiptJournalEntry({
-            receiptId: savedReceipt.id,
-            date,
-            no,
-            amount,
-            mode,
-            clientId: cid,
-            invoiceId: invId
-        });
-
-        await logAudit('CREATE_RECEIPT', 'receipts', null, null, { no, amount, client_id: cid });
         refreshRcpPreview();
-        showToast('Receipt saved successfully!', 'success');
+        showToast(editId ? 'Receipt updated successfully!' : 'Receipt saved successfully!', 'success');
+        if (editId) setTimeout(() => window.location.href = ROUTES.receiptList(), 700);
     } catch (err) {
         showToast(err.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save"></i> Save Receipt';
+        btn.querySelector('i').className = 'fas fa-save';
+        btnLabel.textContent = editId ? 'Update Receipt' : 'Save Receipt';
     }
 }
 
-// ── Auto-create Journal Entry when Receipt is saved ──────────
+// ── Sync existing Journal Entry when a Receipt is edited ─────
+// (avoids creating a duplicate JE; updates header narration + line amounts/accounts)
+async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId }) {
+    try {
+        const { data: entry } = await _supabase.from('journal_entries')
+            .select('id').eq('source_table', 'receipts').eq('source_id', receiptId)
+            .eq('entry_type', 'Receipt').maybeSingle();
+
+        if (!entry) {
+            // No JE existed yet (e.g. created before JE feature, or backfill skipped it) — create one now.
+            await createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId });
+            return;
+        }
+
+        const isCash = (mode || '').toLowerCase() === 'cash';
+        const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', [drAccName, 'Professional Receipts']);
+        if (!accs || accs.length < 2) return;
+        const drAcc = accs.find(a => a.name === drAccName);
+        const crAcc = accs.find(a => a.name === 'Professional Receipts');
+        if (!drAcc || !crAcc) return;
+
+        await _supabase.from('journal_entries').update({
+            entry_date: date,
+            narration:  `Being receipt no. ${no} received via ${mode}`
+        }).eq('id', entry.id);
+
+        const { data: lines } = await _supabase.from('journal_lines')
+            .select('id,dr_amount,cr_amount').eq('entry_id', entry.id).order('id');
+        if (!lines || lines.length < 2) return;
+
+        const drLine = lines.find(l => parseFloat(l.dr_amount || 0) > 0) || lines[0];
+        const crLine = lines.find(l => parseFloat(l.cr_amount || 0) > 0) || lines[1];
+
+        await _supabase.from('journal_lines').update({
+            account_id: drAcc.id, dr_amount: amount, cr_amount: 0,
+            client_id: clientId, narration: `${isCash ? 'Cash' : 'Bank'} received: ${no}`
+        }).eq('id', drLine.id);
+
+        await _supabase.from('journal_lines').update({
+            account_id: crAcc.id, dr_amount: 0, cr_amount: amount,
+            invoice_id: invoiceId || null, narration: `Receipt: ${no}`
+        }).eq('id', crLine.id);
+
+    } catch (e) {
+        console.warn('Sync JE failed (non-critical):', e.message);
+    }
+}
+
 async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId }) {
     try {
         // 1. Resolve account IDs from accounts table

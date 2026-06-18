@@ -116,7 +116,7 @@ async function loadLedger() {
     body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#9ca3af"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
 
     let invQ = _supabase.from('invoices').select('id,invoice_no,invoice_date,total_amount,status').eq('client_id', cid);
-    let rcpQ = _supabase.from('receipts').select('receipt_no,receipt_date,amount,payment_mode,invoice_id').eq('client_id', cid);
+    let rcpQ = _supabase.from('receipts').select('receipt_no,receipt_date,amount,payment_mode,invoice_id,is_cancelled').eq('client_id', cid);
     if (from) { invQ = invQ.gte('invoice_date', from); rcpQ = rcpQ.gte('receipt_date', from); }
     if (to)   { invQ = invQ.lte('invoice_date', to);   rcpQ = rcpQ.lte('receipt_date', to); }
 
@@ -125,7 +125,7 @@ async function loadLedger() {
     // Build unified journal
     const entries = [];
     (invoices||[]).forEach(inv => entries.push({ date: inv.invoice_date, type: 'Invoice', ref: inv.invoice_no, desc: 'Invoice raised', debit: parseFloat(inv.total_amount||0), credit: 0 }));
-    (receipts||[]).forEach(r   => entries.push({ date: r.receipt_date,   type: 'Receipt', ref: r.receipt_no,   desc: `Payment received (${r.payment_mode})`, debit: 0, credit: parseFloat(r.amount||0) }));
+    (receipts||[]).filter(r => !r.is_cancelled).forEach(r => entries.push({ date: r.receipt_date, type: 'Receipt', ref: r.receipt_no, desc: `Payment received (${r.payment_mode})`, debit: 0, credit: parseFloat(r.amount||0) }));
     entries.sort((a,b) => new Date(a.date) - new Date(b.date));
 
     let running = 0, totalDr = 0, totalCr = 0;

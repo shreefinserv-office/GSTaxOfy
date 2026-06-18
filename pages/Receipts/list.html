@@ -249,18 +249,46 @@ let pendingCancelId = null, pendingDeleteId = null;
 
 function openCancelModal(id) {
     pendingCancelId = id;
-    document.getElementById('cancelRcptModal').classList.add('active');
+    openModal('cancelRcptModal');
+}
+
+// Recompute an invoice's paid/unpaid status from its still-active (non-cancelled) receipts.
+// Called after cancelling/restoring/deleting a receipt so Receivables & Ledger stay correct.
+async function recalcInvoiceStatus(invoiceId) {
+    if (!invoiceId) return;
+    const { data: inv } = await _supabase.from('invoices')
+        .select('id,total_amount,status').eq('id', invoiceId).single();
+    if (!inv || inv.status === 'cancelled') return; // don't touch cancelled invoices
+
+    const { data: activeReceipts } = await _supabase.from('receipts')
+        .select('amount').eq('invoice_id', invoiceId).eq('is_cancelled', false);
+    const collected = (activeReceipts || []).reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+    const shouldBePaid = collected >= parseFloat(inv.total_amount || 0) && collected > 0;
+    const newStatus = shouldBePaid ? 'paid' : 'unpaid';
+
+    if (newStatus !== inv.status) {
+        await _supabase.from('invoices')
+            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .eq('id', invoiceId);
+    }
 }
 
 async function confirmCancelReceipt() {
     if (!pendingCancelId) return;
     try {
+        const r = allReceipts.find(x => x.id === pendingCancelId);
+
         const { error } = await _supabase.from('receipts')
             .update({ is_cancelled: true, updated_at: new Date().toISOString() })
             .eq('id', pendingCancelId);
         if (error) throw new Error(error.message);
+
+        // Reverse this receipt's impact: if it had pushed an invoice to "paid",
+        // recompute that invoice's status from its remaining active receipts.
+        if (r?.invoice_id) await recalcInvoiceStatus(r.invoice_id);
+
         await logAudit('CANCEL_RECEIPT', 'receipts', pendingCancelId, null, null);
-        showToast('Receipt cancelled.', 'success');
+        showToast('Receipt cancelled — invoice balance restored.', 'success');
         closeModal('cancelRcptModal');
         await loadReceipts();
     } catch (e) {
@@ -272,10 +300,16 @@ async function confirmCancelReceipt() {
 
 async function restoreReceipt(id) {
     try {
+        const r = allReceipts.find(x => x.id === id);
+
         const { error } = await _supabase.from('receipts')
             .update({ is_cancelled: false, updated_at: new Date().toISOString() })
             .eq('id', id);
         if (error) throw new Error(error.message);
+
+        // Re-apply this receipt's impact: recompute invoice status now that it counts again.
+        if (r?.invoice_id) await recalcInvoiceStatus(r.invoice_id);
+
         await logAudit('RESTORE_RECEIPT', 'receipts', id, null, null);
         showToast('Receipt restored.', 'success');
         await loadReceipts();
@@ -340,13 +374,15 @@ function printReceiptRow(id) {
 // ── Delete ────────────────────────────────────────────────────
 function openDeleteModal(id) {
     pendingDeleteId = id;
-    document.getElementById('deleteRcptModal').classList.add('active');
+    openModal('deleteRcptModal');
 }
 
 async function confirmDeleteReceipt() {
     if (!pendingDeleteId) return;
     const id = pendingDeleteId;
     try {
+        const r = allReceipts.find(x => x.id === id);
+
         // Remove dependent journal lines/entry first (if linked)
         const { data: je } = await _supabase.from('journal_entries')
             .select('id').eq('source_table', 'receipts').eq('source_id', id).maybeSingle();
@@ -358,8 +394,12 @@ async function confirmDeleteReceipt() {
         const { error } = await _supabase.from('receipts').delete().eq('id', id);
         if (error) throw new Error(error.message);
 
+        // This receipt's amount no longer exists at all — recompute the invoice's
+        // paid/unpaid status from whatever active receipts remain against it.
+        if (r?.invoice_id) await recalcInvoiceStatus(r.invoice_id);
+
         await logAudit('DELETE_RECEIPT', 'receipts', id, null, null);
-        showToast('Receipt deleted.', 'success');
+        showToast('Receipt permanently deleted.', 'success');
         closeModal('deleteRcptModal');
         await loadReceipts();
     } catch (e) {

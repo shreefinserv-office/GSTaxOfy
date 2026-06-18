@@ -99,12 +99,12 @@ let rows = [];
     // Load invoices + receipts in parallel
     const [{ data: invoices }, { data: receipts }] = await Promise.all([
         _supabase.from('invoices').select('id,invoice_no,invoice_date,total_amount,status,clients(name)').in('status',['unpaid','paid']).order('invoice_date', { ascending: false }),
-        _supabase.from('receipts').select('invoice_id,amount')
+        _supabase.from('receipts').select('invoice_id,amount,is_cancelled')
     ]);
 
-    // Group receipts by invoice
+    // Group receipts by invoice — cancelled receipts no longer count toward "collected"
     const collected = {};
-    (receipts||[]).forEach(r => { if (r.invoice_id) collected[r.invoice_id] = (collected[r.invoice_id]||0) + parseFloat(r.amount||0); });
+    (receipts||[]).forEach(r => { if (r.invoice_id && !r.is_cancelled) collected[r.invoice_id] = (collected[r.invoice_id]||0) + parseFloat(r.amount||0); });
 
     const today = new Date(); today.setHours(0,0,0,0);
     rows = (invoices||[]).map(inv => {
