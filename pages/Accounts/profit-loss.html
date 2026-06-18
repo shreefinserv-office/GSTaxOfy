@@ -54,43 +54,54 @@
             <div class="section-header">
                 <div class="page-title" style="margin:0"><i class="fas fa-chart-line"></i> Profit &amp; Loss Account</div>
                 <div style="display:flex;gap:8px;align-items:center">
+                    <button class="btn btn-secondary btn-sm" onclick="window.location.href='https://shreefinserv-office.github.io/GSTaxOfy/pages/Reports/profitability.html'"><i class="fas fa-arrow-left"></i> Back</button>
                     <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff"></select>
                     <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
                 </div>
             </div>
 
             <!-- Accounts Module Nav Strip -->
-            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px">
-                <a href="income-expenses.html" style="text-decoration:none">
-                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#0891b2'" onmouseleave="this.style.borderColor='#e5e7eb'">
-                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#164e63,#0891b2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-coins"></i></div>
-                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Income & Expenses</div><div style="font-size:10px;color:#6b7280">Chart of accounts</div></div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px">
+                <div class="card" style="cursor:pointer;border:2px solid transparent;transition:border-color .2s"
+                    onmouseenter="this.style.borderColor='#0891b2'" onmouseleave="this.style.borderColor='transparent'"
+                    onclick="window.location.href=ROUTES.incomeExpenses()">
+                    <div style="display:flex;align-items:center;gap:14px">
+                        <div style="width:50px;height:50px;border-radius:12px;background:linear-gradient(135deg,#164e63,#0891b2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0"><i class="fas fa-coins"></i></div>
+                        <div><div style="font-size:15px;font-weight:700;color:#1f2937">Income &amp; Expenses</div><div style="font-size:11px;color:#6b7280;margin-top:2px">Chart of accounts</div></div>
                     </div>
-                </a>
-                <a href="journal-entries.html" style="text-decoration:none">
-                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#3b82f6'" onmouseleave="this.style.borderColor='#e5e7eb'">
-                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#1e40af,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-book-open"></i></div>
-                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Journal Entries</div><div style="font-size:10px;color:#6b7280">View & manage entries</div></div>
+                </div>
+                <div class="card" style="cursor:pointer;border:2px solid transparent;transition:border-color .2s"
+                    onmouseenter="this.style.borderColor='#2563eb'" onmouseleave="this.style.borderColor='transparent'"
+                    onclick="window.location.href=ROUTES.journalEntries()">
+                    <div style="display:flex;align-items:center;gap:14px">
+                        <div style="width:50px;height:50px;border-radius:12px;background:linear-gradient(135deg,#1e40af,#3b82f6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0"><i class="fas fa-book-open"></i></div>
+                        <div><div style="font-size:15px;font-weight:700;color:#1f2937">Journal Entries</div><div style="font-size:11px;color:#6b7280;margin-top:2px">View &amp; manage all entries</div></div>
                     </div>
-                </a>
-                <a href="trading-account.html" style="text-decoration:none">
-                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#059669'" onmouseleave="this.style.borderColor='#e5e7eb'">
-                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#065f46,#059669);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-exchange-alt"></i></div>
-                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Trading Account</div><div style="font-size:10px;color:#6b7280">Direct income & expenses</div></div>
+                </div>
+                <div class="card" style="cursor:pointer;border:2px solid transparent;transition:border-color .2s"
+                    onmouseenter="this.style.borderColor='#059669'" onmouseleave="this.style.borderColor='transparent'"
+                    onclick="window.location.href=ROUTES.tradingAccount()">
+                    <div style="display:flex;align-items:center;gap:14px">
+                        <div style="width:50px;height:50px;border-radius:12px;background:linear-gradient(135deg,#065f46,#059669);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0"><i class="fas fa-exchange-alt"></i></div>
+                        <div><div style="font-size:15px;font-weight:700;color:#1f2937">Trading Account</div><div style="font-size:11px;color:#6b7280;margin-top:2px">Direct income &amp; direct expenses</div></div>
                     </div>
-                </a>
-                <a href="profit-loss.html" style="text-decoration:none">
-                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:2px solid #7c3aed;background:#f0f9ff;cursor:pointer">
-                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#5b21b6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-chart-line"></i></div>
-                        <div><div style="font-size:12px;font-weight:700;color:#5b21b6">Profit & Loss A/c</div><div style="font-size:10px;color:#6b7280">Indirect income & expenses</div></div>
+                </div>
+                <div class="card" style="cursor:pointer;border:2px solid transparent;transition:border-color .2s"
+                    onmouseenter="this.style.borderColor='#7c3aed'" onmouseleave="this.style.borderColor='transparent'"
+                    onclick="window.location.href=ROUTES.profitLoss()">
+                    <div style="display:flex;align-items:center;gap:14px">
+                        <div style="width:50px;height:50px;border-radius:12px;background:linear-gradient(135deg,#5b21b6,#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0"><i class="fas fa-chart-line"></i></div>
+                        <div><div style="font-size:15px;font-weight:700;color:#1f2937">Profit &amp; Loss A/c</div><div style="font-size:11px;color:#6b7280;margin-top:2px">Indirect income &amp; expenses</div></div>
                     </div>
-                </a>
-                <a href="balance-sheet.html" style="text-decoration:none">
-                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;border:1.5px solid #e5e7eb;background:#fff;cursor:pointer" onmouseenter="this.style.borderColor='#b45309'" onmouseleave="this.style.borderColor='#e5e7eb'">
-                        <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#78350f,#b45309);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0"><i class="fas fa-balance-scale"></i></div>
-                        <div><div style="font-size:12px;font-weight:700;color:#1f2937">Balance Sheet</div><div style="font-size:10px;color:#6b7280">Assets & liabilities</div></div>
+                </div>
+                <div class="card" style="cursor:pointer;border:2px solid transparent;transition:border-color .2s"
+                    onmouseenter="this.style.borderColor='#b45309'" onmouseleave="this.style.borderColor='transparent'"
+                    onclick="window.location.href=ROUTES.balanceSheet()">
+                    <div style="display:flex;align-items:center;gap:14px">
+                        <div style="width:50px;height:50px;border-radius:12px;background:linear-gradient(135deg,#78350f,#b45309);display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0"><i class="fas fa-balance-scale"></i></div>
+                        <div><div style="font-size:15px;font-weight:700;color:#1f2937">Balance Sheet</div><div style="font-size:11px;color:#6b7280;margin-top:2px">Assets, liabilities &amp; capital</div></div>
                     </div>
-                </a>
+                </div>
             </div>
             <div id="stmtContainer"></div>
         </main>
