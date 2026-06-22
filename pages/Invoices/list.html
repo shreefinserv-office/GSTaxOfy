@@ -67,43 +67,6 @@
     </div>
 </div>
 
-<!-- Edit Invoice Modal -->
-<div class="modal-overlay" id="editInvModal">
-    <div class="modal-box" style="max-width:520px">
-        <div class="modal-header">
-            <span class="modal-title"><i class="fas fa-edit" style="color:#2563eb;margin-right:8px"></i>Edit Invoice</span>
-            <button class="modal-close" onclick="closeModal('editInvModal')">&times;</button>
-        </div>
-        <input type="hidden" id="ei_id">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-            <div class="form-group">
-                <label style="font-size:12px">Invoice No. *</label>
-                <input type="text" id="ei_no" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box">
-            </div>
-            <div class="form-group">
-                <label style="font-size:12px">Invoice Date *</label>
-                <input type="date" id="ei_date" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box">
-            </div>
-        </div>
-        <div class="form-group" style="margin-bottom:12px">
-            <label style="font-size:12px">Status</label>
-            <select id="ei_status" style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;background:#fff">
-                <option value="unpaid">Unpaid</option>
-                <option value="paid">Paid</option>
-                <option value="cancelled">Cancelled</option>
-            </select>
-        </div>
-        <div class="form-group" style="margin-bottom:16px">
-            <label style="font-size:12px">Notes</label>
-            <textarea id="ei_notes" rows="2" style="resize:vertical;padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;box-sizing:border-box"></textarea>
-        </div>
-        <div class="form-actions">
-            <button class="btn btn-secondary" onclick="closeModal('editInvModal')">Cancel</button>
-            <button class="btn btn-primary" onclick="saveEditInvoice()"><i class="fas fa-save"></i> Save Changes</button>
-        </div>
-    </div>
-</div>
-
 <!-- Cancel Confirm Modal -->
 <div class="modal-overlay" id="cancelInvModal">
     <div class="modal-box" style="max-width:340px">
@@ -330,7 +293,7 @@ function renderTable(invoices) {
         <td><strong style="color:#2563eb">₹ ${parseFloat(inv.total_amount||0).toFixed(2)}</strong></td>
         <td><span class="badge ${statusColors[inv.status]||'badge-gray'}">${(inv.status||'').charAt(0).toUpperCase()+(inv.status||'').slice(1)}</span></td>
         <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-sm" onclick="openEditModal(${inv.id})" title="Edit Invoice"><i class="fas fa-edit"></i> Edit</button>
+            <button class="btn btn-secondary btn-sm" onclick="editInvoice(${inv.id})" title="Edit Invoice"><i class="fas fa-edit"></i> Edit</button>
             <button class="btn btn-cancel-inv btn-sm" onclick="cancelInvoice(${inv.id},'${inv.status}')" title="Cancel Invoice"><i class="fas fa-ban"></i> Cancel</button>
             <button class="btn btn-sm" style="background:#2563eb;color:#fff;border:none" onclick="printInvoiceFromList(${inv.id})" title="Print / PDF"><i class="fas fa-print"></i> Print</button>
             <button class="btn btn-danger btn-sm" onclick="deleteInvoice(${inv.id})" title="Delete Invoice"><i class="fas fa-trash"></i> Delete</button>
@@ -355,32 +318,8 @@ async function updateStatus() {
 }
 
 // ── Edit Invoice ──────────────────────────────────────────────
-function openEditModal(id) {
-    const inv = allInvoices.find(i => i.id === id);
-    if (!inv) return;
-    document.getElementById('ei_id').value     = id;
-    document.getElementById('ei_no').value     = inv.invoice_no || '';
-    document.getElementById('ei_date').value   = inv.invoice_date || '';
-    document.getElementById('ei_status').value = inv.status || 'unpaid';
-    document.getElementById('ei_notes').value  = inv.notes || '';
-    openModal('editInvModal');
-}
-
-async function saveEditInvoice() {
-    const id     = parseInt(document.getElementById('ei_id').value);
-    const invNo  = document.getElementById('ei_no').value.trim();
-    const invDate= document.getElementById('ei_date').value;
-    const status = document.getElementById('ei_status').value;
-    const notes  = document.getElementById('ei_notes').value.trim();
-    if (!invNo || !invDate) { showToast('Invoice No. and Date are required.', 'error'); return; }
-    const { error } = await _supabase.from('invoices').update({
-        invoice_no: invNo, invoice_date: invDate,
-        status, notes, updated_at: new Date().toISOString()
-    }).eq('id', id);
-    if (error) { showToast(error.message, 'error'); return; }
-    showToast('Invoice updated.', 'success');
-    closeModal('editInvModal');
-    await loadInvoices();
+function editInvoice(id) {
+    window.location.href = ROUTES.generateInvoice() + '?id=' + id;
 }
 
 // ── Cancel Invoice ────────────────────────────────────────────
@@ -406,11 +345,26 @@ function deleteInvoice(id) {
 }
 async function confirmDeleteInvoice() {
     const id = parseInt(document.getElementById('del_inv_id').value);
-    const { error } = await _supabase.from('invoices').delete().eq('id', id);
-    if (error) { showToast(error.message, 'error'); return; }
-    showToast('Invoice deleted.', 'success');
-    closeModal('deleteInvModal');
-    await loadInvoices();
+    try {
+        // Remove task links so those tasks become selectable again on future invoices
+        await _supabase.from('invoice_tasks').delete().eq('invoice_id', id);
+
+        // Remove dependent journal lines/entry first (if linked)
+        const { data: je } = await _supabase.from('journal_entries')
+            .select('id').eq('source_table', 'invoices').eq('source_id', id).maybeSingle();
+        if (je) {
+            await _supabase.from('journal_lines').delete().eq('entry_id', je.id);
+            await _supabase.from('journal_entries').delete().eq('id', je.id);
+        }
+
+        const { error } = await _supabase.from('invoices').delete().eq('id', id);
+        if (error) throw new Error(error.message);
+        showToast('Invoice deleted.', 'success');
+        closeModal('deleteInvModal');
+        await loadInvoices();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
 }
 
 // ── Print Invoice from List ───────────────────────────────────
