@@ -75,7 +75,7 @@
         <aside class="sidebar" id="sidebar-placeholder"></aside>
         <main class="content-area">
             <div class="section-header">
-                <div class="page-title" style="margin:0"><i class="fas fa-file-invoice"></i> Generate Invoice</div>
+                <div class="page-title" style="margin:0" id="pageTitle"><i class="fas fa-file-invoice"></i> Generate Invoice</div>
                 <button class="btn btn-secondary" onclick="window.location.href=ROUTES.invoiceList()"><i class="fas fa-list"></i> All Invoices</button>
             </div>
 
@@ -134,7 +134,7 @@
 
                         <div style="display:flex;gap:8px">
                             <button class="btn btn-secondary" style="flex:1" onclick="refreshPreview()"><i class="fas fa-eye"></i> Preview</button>
-                            <button class="btn btn-primary" style="flex:1" id="saveInvBtn" onclick="saveInvoice()"><i class="fas fa-save"></i> Save Invoice</button>
+                            <button class="btn btn-primary" style="flex:1" id="saveInvBtn" onclick="saveInvoice()"><i class="fas fa-save"></i> <span id="saveBtnLabel">Save Invoice</span></button>
                         </div>
                     </div>
                 </div>
@@ -228,12 +228,16 @@ let allClients = [];
 let firmData   = {};
 let clientTasks = [];
 let lineItemCount = 0;
+let editId = null, editingInvoice = null, preCheckedTaskIds = [];
 
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
     renderSidebar('generate-invoice');
     setActiveNav();
+
+    const params = new URLSearchParams(window.location.search);
+    editId = parseInt(params.get('id')) || null;
 
     // Set today as default date
     document.getElementById('inv_date').value = new Date().toISOString().split('T')[0];
@@ -253,15 +257,55 @@ let lineItemCount = 0;
     const sel = document.getElementById('inv_client');
     allClients.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
 
-    // Auto-generate invoice number
-    const { count } = await _supabase.from('invoices').select('id', { count: 'exact', head: true });
-    const now = new Date();
-    const fy  = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-    const fyStr = String(fy).slice(2) + String(fy+1).slice(2);
-    document.getElementById('inv_no').value = `IN${fyStr}/${String((count||0)+1).padStart(3,'0')}`;
+    if (editId) {
+        await loadInvoiceForEdit(editId);
+    } else {
+        // Auto-generate invoice number
+        const { count } = await _supabase.from('invoices').select('id', { count: 'exact', head: true });
+        const now = new Date();
+        const fy  = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+        const fyStr = String(fy).slice(2) + String(fy+1).slice(2);
+        document.getElementById('inv_no').value = `IN${fyStr}/${String((count||0)+1).padStart(3,'0')}`;
 
-    addLineItem(); // start with 1 empty row
+        addLineItem(); // start with 1 empty row
+    }
 })();
+
+async function loadInvoiceForEdit(id) {
+    const { data: inv, error } = await _supabase
+        .from('invoices')
+        .select('*, invoice_tasks(task_id)')
+        .eq('id', id)
+        .single();
+    if (error || !inv) { showToast('Invoice not found.', 'error'); return; }
+    editingInvoice = inv;
+    preCheckedTaskIds = (inv.invoice_tasks || []).map(it => it.task_id);
+
+    // Switch page into edit mode visually
+    document.getElementById('pageTitle').innerHTML = '<i class="fas fa-file-invoice"></i> Edit Invoice';
+    document.getElementById('saveBtnLabel').textContent = 'Update Invoice';
+
+    document.getElementById('inv_no').value   = inv.invoice_no || '';
+    document.getElementById('inv_date').value = inv.invoice_date || '';
+    document.getElementById('inv_client').value = inv.client_id || '';
+    document.getElementById('inv_notes').value  = inv.notes || '';
+
+    // Populate line items from saved invoice
+    const items = (() => { try { return JSON.parse(inv.line_items || '[]'); } catch { return []; } })();
+    document.getElementById('lineItemsContainer').innerHTML = '';
+    lineItemCount = 0;
+    if (items.length) {
+        items.forEach(li => addLineItem(li.description, li.sac, li.amount));
+    } else {
+        addLineItem();
+    }
+
+    // Load this client's task picker (will exclude tasks already invoiced elsewhere,
+    // but keep this invoice's own linked tasks visible & pre-checked)
+    if (inv.client_id) await onInvClientChange();
+
+    refreshPreview();
+}
 
 async function onInvClientChange() {
     const cid = parseInt(document.getElementById('inv_client').value);
@@ -275,7 +319,27 @@ async function onInvClientChange() {
         .eq('status', 'completed')
         .order('due_date', { ascending: false });
 
-    clientTasks = tasks || [];
+    // Find tasks already linked to OTHER (non-cancelled) invoices, so they
+    // don't show up again as selectable in a new/different invoice.
+    let invoicedElsewhereIds = new Set();
+    if (tasks && tasks.length) {
+        const taskIds = tasks.map(t => t.id);
+        const { data: links } = await _supabase
+            .from('invoice_tasks')
+            .select('task_id, invoices(id, status)')
+            .in('task_id', taskIds);
+        (links || []).forEach(l => {
+            const linkedInvoiceId = l.invoices?.id;
+            const linkedStatus    = l.invoices?.status;
+            const isThisInvoice   = editId && linkedInvoiceId === editId;
+            const isCancelled     = linkedStatus === 'cancelled';
+            if (!isThisInvoice && !isCancelled) invoicedElsewhereIds.add(l.task_id);
+        });
+    }
+
+    // Exclude tasks already invoiced on another active invoice
+    clientTasks = (tasks || []).filter(t => !invoicedElsewhereIds.has(t.id));
+
     const section = document.getElementById('taskPickerSection');
     const list    = document.getElementById('taskPickerList');
 
@@ -287,8 +351,9 @@ async function onInvClientChange() {
     section.style.display = 'block';
     list.innerHTML = clientTasks.map(t => {
         const svcLabel = t.services ? `${t.services.name}${t.services.description ? ' — '+t.services.description : ''}` : (t.task_label||'');
-        return `<label class="task-pick-item" id="tpick_${t.id}">
-            <input type="checkbox" value="${t.id}" data-label="${svcLabel}" data-period="${t.period_label||''}"
+        const checked  = preCheckedTaskIds.includes(t.id);
+        return `<label class="task-pick-item${checked ? ' selected' : ''}" id="tpick_${t.id}">
+            <input type="checkbox" value="${t.id}" data-label="${svcLabel}" data-period="${t.period_label||''}" ${checked ? 'checked' : ''}
                 onchange="document.getElementById('tpick_'+this.value).classList.toggle('selected',this.checked);onTaskPickChange()">
             <div>
                 <div style="font-size:13px;font-weight:600;color:#1f2937">${svcLabel}</div>
@@ -448,43 +513,122 @@ async function saveInvoice() {
     if (!items.length) { showToast('Add at least one line item.', 'error'); return; }
 
     const btn = document.getElementById('saveInvBtn');
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+    const btnLabel = document.getElementById('saveBtnLabel');
+    btn.disabled = true;
+    btn.querySelector('i').className = 'fas fa-spinner fa-spin';
+    if (btnLabel) btnLabel.textContent = editId ? 'Updating…' : 'Saving…';
 
     try {
-        const { data: inv, error } = await _supabase.from('invoices').insert({
-            invoice_no:   invNo,
-            invoice_date: invDate,
-            client_id:    cid,
-            line_items:   JSON.stringify(items),
-            total_amount: total,
-            notes,
-            status:       'unpaid',
-            created_at:   new Date().toISOString(),
-            updated_at:   new Date().toISOString()
-        }).select('id').single();
-        if (error) throw new Error(error.message);
+        let invoiceId;
 
-        // Save task links
-        if (taskIds.length && inv?.id) {
-            await _supabase.from('invoice_tasks').insert(taskIds.map(tid => ({ invoice_id: inv.id, task_id: tid })));
+        if (editId) {
+            // ── UPDATE existing invoice ──
+            const { error } = await _supabase.from('invoices').update({
+                invoice_no:   invNo,
+                invoice_date: invDate,
+                client_id:    cid,
+                line_items:   JSON.stringify(items),
+                total_amount: total,
+                notes,
+                updated_at:   new Date().toISOString()
+            }).eq('id', editId);
+            if (error) throw new Error(error.message);
+            invoiceId = editId;
+
+            // Re-sync task links: replace old links with the currently checked set
+            await _supabase.from('invoice_tasks').delete().eq('invoice_id', editId);
+            if (taskIds.length) {
+                await _supabase.from('invoice_tasks').insert(taskIds.map(tid => ({ invoice_id: editId, task_id: tid })));
+            }
+
+            // Keep the linked journal entry in sync with the new total
+            await syncInvoiceJournalEntry({ invoiceId, invNo, invDate, total, clientId: cid });
+
+            await logAudit('UPDATE_INVOICE', 'invoices', editId, null, { invNo, total });
+        } else {
+            // ── INSERT new invoice ──
+            const { data: inv, error } = await _supabase.from('invoices').insert({
+                invoice_no:   invNo,
+                invoice_date: invDate,
+                client_id:    cid,
+                line_items:   JSON.stringify(items),
+                total_amount: total,
+                notes,
+                status:       'unpaid',
+                created_at:   new Date().toISOString(),
+                updated_at:   new Date().toISOString()
+            }).select('id').single();
+            if (error) throw new Error(error.message);
+            invoiceId = inv.id;
+
+            // Save task links
+            if (taskIds.length) {
+                await _supabase.from('invoice_tasks').insert(taskIds.map(tid => ({ invoice_id: invoiceId, task_id: tid })));
+            }
+
+            // Auto Journal Entry: Dr Sundry Debtors | Cr Professional Receipts
+            await createInvoiceJournalEntry({ invoiceId, invNo, invDate, total, clientId: cid });
+
+            await logAudit('CREATE_INVOICE', 'invoices', invoiceId, null, { invNo, total });
         }
 
-        // Auto Journal Entry: Dr Sundry Debtors | Cr Professional Receipts
-        await createInvoiceJournalEntry({
-            invoiceId: inv.id,
-            invNo,
-            invDate,
-            total,
-            clientId: cid
-        });
-
         refreshPreview();
-        showToast('Invoice saved!', 'success');
-        await logAudit('CREATE_INVOICE', 'invoices', inv?.id, null, { invNo, total });
+        showToast(editId ? 'Invoice updated successfully!' : 'Invoice saved!', 'success');
+        if (editId) setTimeout(() => window.location.href = ROUTES.invoiceList(), 700);
     } catch(err) {
         showToast(err.message, 'error');
     } finally {
-        btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Save Invoice';
+        btn.disabled = false;
+        btn.querySelector('i').className = 'fas fa-save';
+        if (btnLabel) btnLabel.textContent = editId ? 'Update Invoice' : 'Save Invoice';
+    }
+}
+
+// ── Sync existing Journal Entry when an Invoice is edited ────
+// (avoids creating a duplicate JE; updates header narration + line amounts)
+async function syncInvoiceJournalEntry({ invoiceId, invNo, invDate, total, clientId }) {
+    try {
+        const { data: entry } = await _supabase.from('journal_entries')
+            .select('id').eq('source_table', 'invoices').eq('source_id', invoiceId)
+            .eq('entry_type', 'Sales').maybeSingle();
+
+        if (!entry) {
+            // No JE existed yet (e.g. created before JE feature, or backfill skipped it) — create one now.
+            await createInvoiceJournalEntry({ invoiceId, invNo, invDate, total, clientId });
+            return;
+        }
+
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', ['Sundry Debtors', 'Professional Receipts']);
+        if (!accs || accs.length < 2) return;
+        const drAcc = accs.find(a => a.name === 'Sundry Debtors');
+        const crAcc = accs.find(a => a.name === 'Professional Receipts');
+        if (!drAcc || !crAcc) return;
+
+        await _supabase.from('journal_entries').update({
+            entry_date: invDate,
+            narration:  `Being Invoice No. ${invNo} raised — professional services rendered`
+        }).eq('id', entry.id);
+
+        const { data: lines } = await _supabase.from('journal_lines')
+            .select('id,dr_amount,cr_amount').eq('entry_id', entry.id).order('id');
+        if (!lines || lines.length < 2) return;
+
+        const drLine = lines.find(l => parseFloat(l.dr_amount || 0) > 0) || lines[0];
+        const crLine = lines.find(l => parseFloat(l.cr_amount || 0) > 0) || lines[1];
+
+        await _supabase.from('journal_lines').update({
+            account_id: drAcc.id, dr_amount: total, cr_amount: 0,
+            client_id: clientId, invoice_id: invoiceId, narration: `Debtor: Invoice ${invNo}`
+        }).eq('id', drLine.id);
+
+        await _supabase.from('journal_lines').update({
+            account_id: crAcc.id, dr_amount: 0, cr_amount: total,
+            invoice_id: invoiceId, narration: `Sales: Invoice ${invNo}`
+        }).eq('id', crLine.id);
+
+    } catch (e) {
+        console.warn('Sync Invoice JE failed (non-critical):', e.message);
     }
 }
 
