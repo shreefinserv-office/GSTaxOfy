@@ -348,7 +348,7 @@ async function loadInvoiceForEdit(id) {
     // but keep this invoice's own linked tasks visible & pre-checked)
     if (inv.client_id) await onInvClientChange();
 
-    refreshPreview();
+    refreshPreview(true);
 }
 
 async function onInvClientChange() {
@@ -450,7 +450,7 @@ function calcTotal() {
 }
 
 // ── PREVIEW ──────────────────────────────────────────────────
-async function refreshPreview() {
+async function refreshPreview(isSaved = false) {
     const invNo   = document.getElementById('inv_no').value.trim();
     const invDate = document.getElementById('inv_date').value;
     const cid     = parseInt(document.getElementById('inv_client').value);
@@ -501,7 +501,7 @@ async function refreshPreview() {
                 <p style="font-size:12px;color:#6b7280;margin:2px 0">Date: ${dateStr}</p>
             </div>
         </div>
-        <div class="inv-center-title">INVOICE</div>
+        <div class="inv-center-title">${isSaved ? 'INVOICE' : 'PROFORMA INVOICE'}</div>
         <div class="inv-client-section" style="margin-top:14px">
             <div>
                 <div class="inv-label">Bill To</div>
@@ -685,7 +685,7 @@ async function saveInvoice() {
         // Build the print-ready preview from the data we just saved, and capture
         // a snapshot BEFORE the form gets cleared below — this is what the
         // "Print / PDF" button in the success popup will reuse.
-        lastSavedInvoiceHtml = await refreshPreview();
+        lastSavedInvoiceHtml = await refreshPreview(true);
         lastSavedInvoiceNo   = invNo;
 
         if (editId) {
