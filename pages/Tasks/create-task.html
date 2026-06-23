@@ -133,7 +133,7 @@ let clientServiceMap = {}; // client_id -> [{service_id, service}]
 async function loadClients() {
     const { data } = await _supabase
         .from('clients')
-        .select('id, name, client_services(service_id, services(id, name, description, frequency, deadline_day, deadline_month))')
+        .select('id, name, client_services(service_id, services(id, name, description, frequency, deadline_day, deadline_month, parent_id, parent:parent_id(name)))')
         .eq('is_active', true)
         .order('name');
     allClients = data || [];
@@ -162,6 +162,15 @@ function onClientChange() {
     document.getElementById('t_period').value = '';
 }
 
+// Detects whether a service belongs to the "Income Tax Return" practice area —
+// checks both the linked parent service's name and the sub-service's own
+// name/description, so it works regardless of how a given service row was set up.
+function isIncomeTaxService(svc) {
+    if (!svc) return false;
+    const haystack = `${svc.parent?.name || ''} ${svc.name || ''} ${svc.description || ''}`.toLowerCase();
+    return haystack.includes('income tax');
+}
+
 function onServiceChange() {
     const cid = parseInt(document.getElementById('t_client').value);
     const sid = parseInt(document.getElementById('t_service').value);
@@ -184,7 +193,12 @@ function onServiceChange() {
     } else if (svc.frequency === 'Annually' && svc.deadline_month) {
         const due = new Date(now.getFullYear(), svc.deadline_month - 1, svc.deadline_day);
         document.getElementById('t_due_date').value = due.toISOString().split('T')[0];
-        document.getElementById('t_period').value = `FY ${now.getFullYear()}-${String(now.getFullYear()+1).slice(2)}`;
+
+        // Income Tax Return filings cover the PREVIOUS financial year's income
+        // (e.g. an ITR filed/due in calendar 2026 reports income earned in FY 2025-26).
+        // Other annual filings are labeled with the current/filing year's own FY.
+        const fyStart = isIncomeTaxService(svc) ? now.getFullYear() - 1 : now.getFullYear();
+        document.getElementById('t_period').value = `FY ${fyStart}-${String(fyStart+1).slice(2)}`;
     }
 }
 
