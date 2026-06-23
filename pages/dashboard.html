@@ -237,38 +237,44 @@ const iconMap = {
 
 async function loadPortals() {
     const { data: portals } = await _supabase
-        .from('portal_shortcuts').select('*').eq('is_active', true).order('sort_order');
+        .from('portal_shortcuts')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
+
     const grid = document.getElementById('portalsGrid');
-    if (!portals || !portals.length) { grid.innerHTML = '<span class="text-muted">No portals yet.</span>'; return; }
-    grid.innerHTML = portals.map(p => {
-        const isIT  = p.name.toLowerCase().includes('income tax');
-        const isGST = p.name.toLowerCase() === 'gst portal' || p.name.toLowerCase() === 'gst return filing' || p.name.toLowerCase().match(/^gst\s*(portal)?$/);
-        if (isIT) {
-            return `<a class="portal-card" href="${ROUTES.itClients()}" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)">
-                <i class="fas fa-landmark"></i>${p.name}
-            </a>`;
-        }
-        if (isGST) {
-            return `<a class="portal-card" href="${ROUTES.gstClients()}" style="background:linear-gradient(135deg,#1e3a5f,#2563eb)">
-                <i class="fas fa-file-invoice-dollar"></i>${p.name}
-            </a>`;
-        }
-        return `<a class="portal-card" href="${p.url}" target="_blank" rel="noopener">
-            <i class="fas fa-${p.icon || 'globe'}"></i>${p.name}
-        </a>`;
-    }).join('') +
-        `<button class="portal-card add-portal" data-role="master" onclick="openPortalModal()">
+
+    if (!portals || !portals.length) {
+        grid.innerHTML = '<span class="text-muted">No portals yet.</span>';
+        return;
+    }
+
+    grid.innerHTML =
+        portals.map(p => `
+            <a class="portal-card"
+               href="${p.url}"
+               target="_blank"
+               rel="noopener">
+                <i class="fas fa-${p.icon || 'globe'}"></i>${p.name}
+            </a>
+        `).join('') +
+        `
+        <button class="portal-card add-portal"
+                data-role="master"
+                onclick="openPortalModal()">
             <i class="fas fa-plus"></i> Add Portal
-        </button>`;
+        </button>
+        `;
+
     // Hide add button for non-master
     const profile = getCachedProfile();
     if (profile && profile.role !== 'master') {
         grid.querySelectorAll('[data-role="master"]').forEach(el => el.remove());
     }
+
     // Also render manage list inside modal
     renderPortalList(portals);
 }
-
 function renderPortalList(portals) {
     document.getElementById('portalList').innerHTML = portals.map(p => `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6">
