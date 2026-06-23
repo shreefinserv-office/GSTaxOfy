@@ -51,6 +51,28 @@
             body * { visibility:hidden }
             #printArea, #printArea * { visibility:visible }
             #printArea { display:block !important;position:absolute;left:0;top:0;width:100%;padding:20px;box-sizing:border-box }
+            .inv-preview { font-family:'Segoe UI',sans-serif }
+            .inv-firm-name { font-size:20px;font-weight:700;color:#1f2937 }
+            .inv-firm-sub  { font-size:12px;color:#6b7280;margin-top:2px }
+            .inv-center-title { text-align:center;margin:12px 0 4px;letter-spacing:3px;font-size:22px;font-weight:800;color:#1f2937;text-transform:uppercase;border-top:2px solid #e5e7eb;border-bottom:2px solid #e5e7eb;padding:8px 0 }
+            .inv-divider { border:none;border-top:2px solid #e5e7eb;margin:16px 0 }
+            .inv-label  { font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:#9ca3af;margin-bottom:2px;font-weight:600 }
+            .inv-value  { font-size:13px;color:#1f2937;font-weight:600 }
+            .inv-sub    { font-size:11px;color:#6b7280 }
+            .inv-table  { width:100%;border-collapse:collapse;margin-bottom:16px }
+            .inv-table th { background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;text-align:left;color:#6b7280;border-bottom:2px solid #e5e7eb }
+            .inv-table td { padding:10px 12px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#1f2937 }
+            .inv-total-row { display:flex;justify-content:flex-end;margin-top:8px }
+            .inv-total-box { background:#2563eb;color:#fff;border-radius:8px;padding:12px 20px;min-width:200px }
+            .inv-total-label { font-size:11px;opacity:.8;text-transform:uppercase;letter-spacing:.5px }
+            .inv-total-amount { font-size:22px;font-weight:800;margin-top:2px }
+            .inv-words { font-size:11px;color:#6b7280;margin-top:10px;font-style:italic }
+            .inv-bank { margin-top:20px;background:#f8fafc;border-radius:8px;padding:14px 16px }
+            .inv-bank-title { font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:#6b7280;margin-bottom:8px;font-weight:700 }
+            .inv-bank-grid { display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px }
+            .inv-bank-grid .k { color:#6b7280 }
+            .inv-bank-grid .v { color:#1f2937;font-weight:600 }
+            .inv-footer { margin-top:24px;text-align:center;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb;padding-top:12px }
         }
     </style>
 </head>
@@ -146,7 +168,7 @@
                             <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin:0;display:flex;align-items:center;gap:8px"><i class="fas fa-file-pdf" style="color:#dc2626"></i> Invoice Preview</h3>
                             <button class="btn btn-danger btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i> Print / PDF</button>
                         </div>
-                        <div id="printArea">
+                        <div id="invoicePreviewPanel">
                             <div class="inv-preview" id="invoicePreview">
                                 <div style="text-align:center;padding:40px;color:#d1d5db">
                                     <i class="fas fa-file-invoice" style="font-size:40px;display:block;margin-bottom:10px"></i>
@@ -159,6 +181,11 @@
             </div>
         </main>
     </div>
+</div>
+
+<!-- Print Invoice Hidden Area (kept outside the app layout, like Invoices/list.html) -->
+<div id="printArea" style="display:none">
+    <div class="inv-preview" id="printInvoicePreview"></div>
 </div>
 
 <div class="modal-overlay" id="logoutModal">
@@ -459,7 +486,7 @@ async function refreshPreview() {
         </div>`;
     }
 
-    document.getElementById('invoicePreview').innerHTML = `
+    const invoiceHtml = `
         <div class="inv-header" style="display:flex;justify-content:space-between;align-items:flex-start">
             <div style="display:flex;align-items:flex-start">
                 ${logoHtml}
@@ -508,20 +535,36 @@ async function refreshPreview() {
         ${notes ? `<div style="margin-top:16px;font-size:12px;color:#1f2937">${notes}</div>` : ''}
         <div class="inv-footer">This is a computer generated invoice. No signature required.</div>
     `;
+
+    document.getElementById('invoicePreview').innerHTML = invoiceHtml;
+    return invoiceHtml;
 }
 
 async function printInvoice() {
-    await refreshPreview();
-    setTimeout(() => window.print(), 300);
+    const html = await refreshPreview(); // also updates the on-screen #invoicePreview
+    if (!html) return; // validation failed inside refreshPreview (toast already shown)
+    triggerPrint(html);
 }
 
 // ── Print the invoice that was just saved, even after the form has been
 // cleared for the next entry — uses the captured snapshot, not live form state.
 function printSavedInvoice() {
     if (!lastSavedInvoiceHtml) return;
-    document.getElementById('invoicePreview').innerHTML = lastSavedInvoiceHtml;
     closeModal('invSavedModal');
-    setTimeout(() => window.print(), 300);
+    triggerPrint(lastSavedInvoiceHtml);
+}
+
+// ── Shared print trigger: pushes invoice HTML into the dedicated hidden
+// #printArea (kept outside the app layout, same as Invoices/list.html) so the
+// print stylesheet can isolate it cleanly — the on-screen split layout never
+// reaches the printer.
+function triggerPrint(html) {
+    document.getElementById('printInvoicePreview').innerHTML = html;
+    document.getElementById('printArea').style.display = 'block';
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => { document.getElementById('printArea').style.display = 'none'; }, 500);
+    }, 300);
 }
 
 // ── Close the success popup and make sure the form is ready for a new entry
@@ -642,8 +685,7 @@ async function saveInvoice() {
         // Build the print-ready preview from the data we just saved, and capture
         // a snapshot BEFORE the form gets cleared below — this is what the
         // "Print / PDF" button in the success popup will reuse.
-        await refreshPreview();
-        lastSavedInvoiceHtml = document.getElementById('invoicePreview').innerHTML;
+        lastSavedInvoiceHtml = await refreshPreview();
         lastSavedInvoiceNo   = invNo;
 
         if (editId) {
