@@ -165,7 +165,7 @@ async function loadReceipts() {
     const { data, error } = await _supabase
         .from('receipts')
         .select('*, clients(name), invoices(invoice_no)')
-        .order('receipt_date', { ascending: false });
+        .order('receipt_no', { ascending: false });
     if (error) { showToast('Failed to load receipts.', 'error'); return; }
     allReceipts = data || [];
     renderStats();
