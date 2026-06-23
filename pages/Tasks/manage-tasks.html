@@ -218,6 +218,15 @@ let allUsers = [];
 let deleteTargetTaskId = null;
 const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+// Detects whether a service belongs to the "Income Tax Return" practice area —
+// checks both the linked parent service's name and the sub-service's own
+// name/description, so it works regardless of how a given service row was set up.
+function isIncomeTaxService(svc) {
+    if (!svc) return false;
+    const haystack = `${svc.parent?.name || ''} ${svc.name || ''} ${svc.description || ''}`.toLowerCase();
+    return haystack.includes('income tax');
+}
+
 (async () => {
     const profile = await initLayout();
     if (!profile) return;
@@ -451,7 +460,7 @@ async function generateTasks() {
         // Load active clients with their services
         const { data: clientServices, error: csErr } = await _supabase
             .from('client_services')
-            .select('client_id, service_id, clients(name, is_active), services(id, name, description, frequency, deadline_day, deadline_month)')
+            .select('client_id, service_id, clients(name, is_active), services(id, name, description, frequency, deadline_day, deadline_month, parent_id, parent:parent_id(name))')
             .eq('clients.is_active', true);
         if (csErr) throw new Error(csErr.message);
 
@@ -506,9 +515,15 @@ async function generateTasks() {
             } else if (svc.frequency === 'Annually') {
                 const dm = svc.deadline_month;
                 if (dm !== month) { skipped.push(`${cs.clients.name} — ${svc.name} ${svc.description||''} (annual, not due this month)`); continue; }
-                dueDate     = new Date(year, dm - 1, svc.deadline_day);
-                periodLabel = `FY ${year}-${String(year+1).slice(2)}`;
-                startDate   = new Date(year, dm - 1, 1);
+                dueDate = new Date(year, dm - 1, svc.deadline_day);
+                startDate = new Date(year, dm - 1, 1);
+
+                // Income Tax Return filings cover the PREVIOUS financial year's income
+                // (e.g. an ITR filed/due in FY 2026-27 reports income earned in FY 2025-26).
+                // All other annual filings (e.g. Tax Audit Report, Annual GST Return) are
+                // labeled with the filing year's own FY.
+                const fyStart = isIncomeTaxService(svc) ? year - 1 : year;
+                periodLabel = `FY ${fyStart}-${String(fyStart+1).slice(2)}`;
 
             } else {
                 // One-Time / Event Based — skip auto-generation
