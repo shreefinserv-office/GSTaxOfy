@@ -261,7 +261,7 @@ async function loadInvoices() {
     const { data, error } = await _supabase
         .from('invoices')
         .select('*, clients(name)')
-        .order('invoice_date', { ascending: false });
+        .order('invoice_no', { ascending: false });
     if (error) { showToast('Failed to load invoices.', 'error'); return; }
     allInvoices = data || [];
     filterInvoices();
