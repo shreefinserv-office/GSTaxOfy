@@ -24,6 +24,17 @@
             border:2px dashed #d1d5db; box-shadow:none;
         }
         .portal-card.add-portal:hover { border-color:#2563eb; color:#2563eb; background:#eff6ff; }
+
+        /* Icon picker */
+        .icon-picker { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+        .icon-swatch {
+            width:36px; height:36px; border-radius:8px; border:1.5px solid #e5e7eb;
+            display:flex; align-items:center; justify-content:center;
+            cursor:pointer; color:#6b7280; font-size:14px; background:#fff;
+            transition:all .15s;
+        }
+        .icon-swatch:hover { border-color:#93c5fd; background:#eff6ff; color:#2563eb; }
+        .icon-swatch.selected { border-color:#2563eb; background:#2563eb; color:#fff; }
     </style>
     <link rel="manifest" href="../manifest.json">
     <meta name="theme-color" content="#2563eb">
@@ -89,7 +100,7 @@
             <!-- PORTAL SHORTCUTS -->
             <div class="section-header">
                 <span style="font-weight:700;color:#374151;font-size:15px"><i class="fas fa-external-link-alt" style="color:#2563eb;margin-right:6px"></i>Portal Shortcuts</span>
-                <button class="btn btn-secondary btn-sm" data-role="master" onclick="openModal('portalModal')"><i class="fas fa-cog"></i> Manage</button>
+                <button class="btn btn-secondary btn-sm" data-role="master" onclick="openPortalModal()"><i class="fas fa-cog"></i> Manage</button>
             </div>
             <div class="portals-grid" id="portalsGrid">
                 <div style="color:#9ca3af;font-size:13px"><i class="fas fa-spinner fa-spin"></i> Loading…</div>
@@ -127,14 +138,20 @@
         </div>
         <div id="portalList" style="margin-bottom:16px;max-height:260px;overflow-y:auto"></div>
         <hr style="margin-bottom:16px;border:none;border-top:1px solid #e5e7eb">
-        <p style="font-size:13px;font-weight:700;color:#374151;margin-bottom:10px">Add New Portal</p>
+        <p style="font-size:13px;font-weight:700;color:#374151;margin-bottom:10px" id="portalFormTitle">Add New Portal</p>
+        <input type="hidden" id="editingPortalId" value="">
         <div class="form-grid" style="grid-template-columns:1fr 1fr">
             <div class="form-group"><label>Portal Name *</label><input type="text" id="newPortalName" placeholder="e.g. E-Way Bill"></div>
             <div class="form-group"><label>URL *</label><input type="url" id="newPortalUrl" placeholder="https://..."></div>
         </div>
+        <div class="form-group">
+            <label>Icon</label>
+            <div class="icon-picker" id="iconPicker"></div>
+        </div>
         <div class="form-actions">
+            <button class="btn btn-secondary" id="portalFormCancelBtn" style="display:none" onclick="cancelPortalEdit()">Cancel</button>
             <button class="btn btn-secondary" onclick="closeModal('portalModal')">Close</button>
-            <button class="btn btn-primary" onclick="addPortal()"><i class="fas fa-plus"></i> Add Portal</button>
+            <button class="btn btn-primary" id="portalFormSaveBtn" onclick="addPortal()"><i class="fas fa-plus"></i> Add Portal</button>
         </div>
     </div>
 </div>
@@ -198,9 +215,8 @@ const iconMap = {
     const totalReceivables = (invs||[]).reduce((s,i)=>s+parseFloat(i.total_amount||0),0);
     document.getElementById('metricReceivables').textContent = '₹ ' + totalReceivables.toLocaleString('en-IN',{minimumFractionDigits:0,maximumFractionDigits:0});
 
+    renderIconPicker();
     await loadPortals();
-
-    // Recent activity
     const { data: logs } = await _supabase
         .from('audit_log').select('*').order('created_at', { ascending: false }).limit(8);
     const list = document.getElementById('activityList');
@@ -241,7 +257,7 @@ async function loadPortals() {
             <i class="fas fa-${p.icon || 'globe'}"></i>${p.name}
         </a>`;
     }).join('') +
-        `<button class="portal-card add-portal" data-role="master" onclick="openModal('portalModal')">
+        `<button class="portal-card add-portal" data-role="master" onclick="openPortalModal()">
             <i class="fas fa-plus"></i> Add Portal
         </button>`;
     // Hide add button for non-master
@@ -258,28 +274,99 @@ function renderPortalList(portals) {
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6">
             <span style="font-size:13px;color:#374151"><i class="fas fa-${p.icon||'globe'}" style="color:#2563eb;margin-right:8px;width:16px"></i>${p.name}</span>
             <div style="display:flex;gap:6px">
-                <a href="${p.url}" target="_blank" class="btn btn-secondary btn-sm"><i class="fas fa-external-link-alt"></i></a>
-                <button class="btn btn-danger btn-sm" onclick="deletePortal(${p.id})"><i class="fas fa-trash"></i></button>
+                <a href="${p.url}" target="_blank" class="btn btn-secondary btn-sm" title="Open"><i class="fas fa-external-link-alt"></i></a>
+                <button class="btn btn-secondary btn-sm" onclick='startEditPortal(${JSON.stringify(p).replace(/'/g,"&apos;")})' title="Edit"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger btn-sm" onclick="deletePortal(${p.id})" title="Delete"><i class="fas fa-trash"></i></button>
             </div>
         </div>`).join('');
 }
 
+// ── Icon picker ──────────────────────────────────────────────
+const PORTAL_ICONS = [
+    'globe', 'landmark', 'file-invoice-dollar', 'university', 'graduation-cap',
+    'id-card', 'briefcase', 'building', 'file-contract', 'gavel',
+    'coins', 'chart-line', 'shield-alt', 'receipt', 'stamp',
+    'piggy-bank', 'hand-holding-usd', 'calculator', 'link', 'globe-asia'
+];
+let selectedPortalIcon = 'globe';
+
+function renderIconPicker() {
+    document.getElementById('iconPicker').innerHTML = PORTAL_ICONS.map(ic => `
+        <div class="icon-swatch ${ic === selectedPortalIcon ? 'selected' : ''}" data-icon="${ic}" onclick="selectPortalIcon('${ic}')" title="${ic}">
+            <i class="fas fa-${ic}"></i>
+        </div>`).join('');
+}
+
+function openPortalModal() {
+    cancelPortalEdit();
+    openModal('portalModal');
+}
+
+function selectPortalIcon(icon) {
+    selectedPortalIcon = icon;
+    document.querySelectorAll('#iconPicker .icon-swatch').forEach(el => {
+        el.classList.toggle('selected', el.dataset.icon === icon);
+    });
+}
+
+// ── Edit / Cancel ────────────────────────────────────────────
+function startEditPortal(p) {
+    document.getElementById('editingPortalId').value = p.id;
+    document.getElementById('newPortalName').value   = p.name;
+    document.getElementById('newPortalUrl').value    = p.url;
+    selectedPortalIcon = p.icon || 'globe';
+    renderIconPicker();
+
+    document.getElementById('portalFormTitle').textContent = 'Edit Portal';
+    document.getElementById('portalFormCancelBtn').style.display = 'inline-flex';
+    const saveBtn = document.getElementById('portalFormSaveBtn');
+    saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+
+    document.getElementById('newPortalName').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function cancelPortalEdit() {
+    document.getElementById('editingPortalId').value = '';
+    document.getElementById('newPortalName').value   = '';
+    document.getElementById('newPortalUrl').value    = '';
+    selectedPortalIcon = 'globe';
+    renderIconPicker();
+
+    document.getElementById('portalFormTitle').textContent = 'Add New Portal';
+    document.getElementById('portalFormCancelBtn').style.display = 'none';
+    document.getElementById('portalFormSaveBtn').innerHTML = '<i class="fas fa-plus"></i> Add Portal';
+}
+
 async function addPortal() {
-    const name = document.getElementById('newPortalName').value.trim();
-    const url  = document.getElementById('newPortalUrl').value.trim();
+    const name   = document.getElementById('newPortalName').value.trim();
+    const url    = document.getElementById('newPortalUrl').value.trim();
+    const icon   = selectedPortalIcon || 'globe';
+    const editId = parseInt(document.getElementById('editingPortalId').value) || null;
     if (!name || !url) { showToast('Name and URL are required.', 'error'); return; }
-    const { error } = await _supabase.from('portal_shortcuts').insert({ name, url, icon: 'globe', sort_order: 99 });
-    if (error) { showToast(error.message, 'error'); return; }
-    document.getElementById('newPortalName').value = '';
-    document.getElementById('newPortalUrl').value  = '';
-    showToast('Portal added!', 'success');
-    await logAudit('ADD_PORTAL', 'portal_shortcuts', null, null, { name, url });
+
+    if (editId) {
+        const { error } = await _supabase.from('portal_shortcuts').update({ name, url, icon }).eq('id', editId);
+        if (error) { showToast(error.message, 'error'); return; }
+        showToast('Portal updated!', 'success');
+        await logAudit('UPDATE_PORTAL', 'portal_shortcuts', editId, null, { name, url, icon });
+        cancelPortalEdit();
+    } else {
+        const { error } = await _supabase.from('portal_shortcuts').insert({ name, url, icon, sort_order: 99 });
+        if (error) { showToast(error.message, 'error'); return; }
+        showToast('Portal added!', 'success');
+        await logAudit('ADD_PORTAL', 'portal_shortcuts', null, null, { name, url, icon });
+        document.getElementById('newPortalName').value = '';
+        document.getElementById('newPortalUrl').value  = '';
+        selectedPortalIcon = 'globe';
+        renderIconPicker();
+    }
     await loadPortals();
 }
 
 async function deletePortal(id) {
     if (!confirm('Remove this portal shortcut?')) return;
     await _supabase.from('portal_shortcuts').update({ is_active: false }).eq('id', id);
+    if (parseInt(document.getElementById('editingPortalId').value) === id) cancelPortalEdit();
     showToast('Portal removed.', 'info');
     await loadPortals();
 }
