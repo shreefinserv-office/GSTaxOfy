@@ -260,7 +260,7 @@
 <script src="../../js/layout.js"></script>
 <script>
 // ────────────────────────────────────────────────────────────
-// AES-256-GCM encryption
+// AES-256-GCM encryption (GST credentials password only)
 // ────────────────────────────────────────────────────────────
 const ENC_PASSPHRASE = 'Ganu&Anu#1999! Love';
 
@@ -290,6 +290,54 @@ async function decryptText(b64) {
         const dec  = await crypto.subtle.decrypt({name:'AES-GCM',iv}, key, ct);
         return new TextDecoder().decode(dec);
     } catch { return null; }
+}
+
+// ────────────────────────────────────────────────────────────
+// AES-256-GCM decryption for client master data (name stays plain;
+// address/contact_no/email_id/pan_no/aadhar_no/assessee_type/gst_no are
+// encrypted at rest by Masters/clients.html). Same key derivation as there,
+// so ciphertext saved there can be read back here.
+// ────────────────────────────────────────────────────────────
+const CLIENT_ENC_KEY_MATERIAL = 'GSTaxOfy-AES256-ClientData-Secret-v1';
+let _clientAesKey = null;
+async function getClientAESKey() {
+    if (_clientAesKey) return _clientAesKey;
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(CLIENT_ENC_KEY_MATERIAL),
+        { name: 'PBKDF2' }, false, ['deriveKey']
+    );
+    _clientAesKey = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: enc.encode('GSTaxOfy-Salt-v1'), iterations: 100000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false, ['encrypt', 'decrypt']
+    );
+    return _clientAesKey;
+}
+async function clientAesDecrypt(ciphertext) {
+    if (!ciphertext || !ciphertext.includes(':')) return ciphertext || '';
+    try {
+        const key = await getClientAESKey();
+        const [ivB64, ctB64] = ciphertext.split(':');
+        const b64ToArr = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+        const iv = b64ToArr(ivB64);
+        const ct = b64ToArr(ctB64);
+        const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+        return new TextDecoder().decode(pt);
+    } catch {
+        // If decryption fails (plain-text field or corrupted), return as-is
+        return ciphertext;
+    }
+}
+const CLIENT_ENCRYPTED_FIELDS = ['pan_no', 'contact_no', 'email_id', 'assessee_type'];
+async function decGSTClientRow(row) {
+    if (!row) return row;
+    const out = { ...row };
+    for (const field of CLIENT_ENCRYPTED_FIELDS) {
+        out[field] = row[field] ? await clientAesDecrypt(row[field]) : '';
+    }
+    return out;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -453,10 +501,14 @@ async function loadGSTClients() {
     }
 
     // 4. parallel fetch
-    const [{ data: clients }, { data: creds }] = await Promise.all([
+    const [{ data: rawClients }, { data: creds }] = await Promise.all([
         _supabase.from('clients').select('id,name,pan_no,contact_no,email_id,date_of_birth,assessee_type,is_active,gstin').in('id',clientIds).eq('is_active',true).order('name'),
         _supabase.from('gst_clients').select('*').in('client_id',clientIds)
     ]);
+
+    // Client master fields (pan_no, contact_no, email_id, assessee_type) are
+    // stored AES-256 encrypted by Masters/clients.html — decrypt before display.
+    const clients = await Promise.all((rawClients||[]).map(decGSTClientRow));
 
     // Map creds by client_id
     const credsMap = {};
