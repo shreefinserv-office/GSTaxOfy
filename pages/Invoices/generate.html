@@ -50,7 +50,7 @@
         @media print {
             body * { visibility:hidden }
             #printArea, #printArea * { visibility:visible }
-            #printArea { position:absolute;left:0;top:0;width:100%;padding:20px;box-sizing:border-box }
+            #printArea { display:block !important;position:absolute;left:0;top:0;width:100%;padding:20px;box-sizing:border-box }
         }
     </style>
 </head>
@@ -172,6 +172,22 @@
     </div>
 </div>
 
+<!-- Invoice Saved Successfully Modal -->
+<div class="modal-overlay" id="invSavedModal">
+    <div class="modal-box" style="max-width:380px;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+            <i class="fas fa-check" style="color:#16a34a;font-size:24px"></i>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:#1f2937;margin-bottom:4px">Invoice Saved!</div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:20px">Invoice <strong id="savedInvNoLabel" style="color:#2563eb">—</strong> has been saved successfully.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-danger" style="width:100%" onclick="printSavedInvoice()"><i class="fas fa-print"></i> Print / PDF</button>
+            <button class="btn btn-primary" style="width:100%" onclick="startNextInvoice()"><i class="fas fa-plus"></i> Create Next Invoice</button>
+            <button class="btn btn-secondary" style="width:100%" onclick="closeModal('invSavedModal');window.location.href=ROUTES.invoiceList()">View All Invoices</button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../../js/supabase-config.js"></script>
 <script src="../../js/app.js"></script>
@@ -229,6 +245,7 @@ let firmData   = {};
 let clientTasks = [];
 let lineItemCount = 0;
 let editId = null, editingInvoice = null, preCheckedTaskIds = [];
+let lastSavedInvoiceHtml = null, lastSavedInvoiceNo = null;
 
 (async () => {
     const profile = await initLayout();
@@ -498,6 +515,56 @@ async function printInvoice() {
     setTimeout(() => window.print(), 300);
 }
 
+// ── Print the invoice that was just saved, even after the form has been
+// cleared for the next entry — uses the captured snapshot, not live form state.
+function printSavedInvoice() {
+    if (!lastSavedInvoiceHtml) return;
+    document.getElementById('invoicePreview').innerHTML = lastSavedInvoiceHtml;
+    closeModal('invSavedModal');
+    setTimeout(() => window.print(), 300);
+}
+
+// ── Close the success popup and make sure the form is ready for a new entry
+async function startNextInvoice() {
+    closeModal('invSavedModal');
+    await resetInvoiceForm();
+}
+
+// ── Clear the form back to a blank "new invoice" state, with a fresh
+// auto-generated invoice number, ready for the next entry.
+async function resetInvoiceForm() {
+    editId = null;
+    editingInvoice = null;
+    preCheckedTaskIds = [];
+
+    document.getElementById('pageTitle').innerHTML = '<i class="fas fa-file-invoice"></i> Generate Invoice';
+    const lbl = document.getElementById('saveBtnLabel');
+    if (lbl) lbl.textContent = 'Save Invoice';
+
+    document.getElementById('inv_client').value = '';
+    document.getElementById('inv_notes').value   = '';
+    document.getElementById('inv_date').value    = new Date().toISOString().split('T')[0];
+    document.getElementById('taskPickerSection').style.display = 'none';
+    document.getElementById('taskPickerList').innerHTML = '';
+    document.getElementById('lineItemsContainer').innerHTML = '';
+    lineItemCount = 0;
+    addLineItem();
+    calcTotal();
+
+    document.getElementById('invoicePreview').innerHTML = `
+        <div style="text-align:center;padding:40px;color:#d1d5db">
+            <i class="fas fa-file-invoice" style="font-size:40px;display:block;margin-bottom:10px"></i>
+            <p style="font-size:13px;color:#9ca3af">Fill in details and click Preview</p>
+        </div>`;
+
+    // Auto-generate the next invoice number
+    const { count } = await _supabase.from('invoices').select('id', { count: 'exact', head: true });
+    const now = new Date();
+    const fy  = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const fyStr = String(fy).slice(2) + String(fy + 1).slice(2);
+    document.getElementById('inv_no').value = `IN${fyStr}/${String((count || 0) + 1).padStart(3, '0')}`;
+}
+
 async function saveInvoice() {
     const invNo   = document.getElementById('inv_no').value.trim();
     const invDate = document.getElementById('inv_date').value;
@@ -572,9 +639,22 @@ async function saveInvoice() {
             await logAudit('CREATE_INVOICE', 'invoices', invoiceId, null, { invNo, total });
         }
 
-        refreshPreview();
-        showToast(editId ? 'Invoice updated successfully!' : 'Invoice saved!', 'success');
-        if (editId) setTimeout(() => window.location.href = ROUTES.invoiceList(), 700);
+        // Build the print-ready preview from the data we just saved, and capture
+        // a snapshot BEFORE the form gets cleared below — this is what the
+        // "Print / PDF" button in the success popup will reuse.
+        await refreshPreview();
+        lastSavedInvoiceHtml = document.getElementById('invoicePreview').innerHTML;
+        lastSavedInvoiceNo   = invNo;
+
+        if (editId) {
+            showToast('Invoice updated successfully!', 'success');
+            setTimeout(() => window.location.href = ROUTES.invoiceList(), 700);
+        } else {
+            showToast('Invoice saved!', 'success');
+            document.getElementById('savedInvNoLabel').textContent = invNo;
+            openModal('invSavedModal');
+            await resetInvoiceForm();
+        }
     } catch(err) {
         showToast(err.message, 'error');
     } finally {
