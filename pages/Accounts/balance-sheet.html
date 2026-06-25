@@ -13,7 +13,9 @@
 .stmt-firm-name { font-size:17px;font-weight:800;color:#1f2937 }
 .stmt-title     { font-size:14px;font-weight:700;color:#1f2937;margin-top:4px }
 .stmt-period    { font-size:12px;color:#374151;margin-top:1px }
-.stmt-grid      { display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d1d5db }
+.stmt-grid      { display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d1d5db;align-items:stretch }
+.stmt-side      { display:flex;flex-direction:column }
+.stmt-side-rows { flex:1 }
 .stmt-col-hdr   { display:grid;grid-template-columns:1fr auto;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#fff;background:#374151 }
 .stmt-group-hdr { padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#374151;background:#f3f4f6;border-bottom:1px solid #e5e7eb;border-top:1px solid #e5e7eb }
 .stmt-row       { display:grid;grid-template-columns:1fr auto;padding:7px 14px 7px 24px;font-size:13px;border-bottom:1px solid #f3f4f6 }
@@ -28,13 +30,39 @@
 .highlight-loss .stmt-row-amt  { color:#991b1b }
 .empty-note     { padding:8px 14px 8px 24px;font-size:12px;color:#9ca3af;font-style:italic;border-bottom:1px solid #f3f4f6 }
 .balance-check  { text-align:center;padding:12px;border-radius:4px;font-weight:700;font-size:13px }
+
+/* ── Print-only statement (mirrors classic CA/Tally Balance Sheet format) ── */
+#printArea { display:none }
+.bs-print { font-family:'Times New Roman',Georgia,serif; color:#000; background:#fff; padding:24px 30px; }
+.bs-print-firm    { text-align:center; margin-bottom:14px; }
+.bs-print-firmname{ font-size:15px; font-weight:700; }
+.bs-print-addr    { font-size:11px; line-height:1.5; }
+.bs-print-email   { font-size:11px; display:inline-block; border-bottom:1px solid #000; padding-bottom:1px; margin-top:2px; }
+.bs-print-title   { font-size:14px; font-weight:700; text-align:center; margin-top:10px; }
+.bs-print-period  { font-size:11px; text-align:center; margin-top:1px; margin-bottom:14px; }
+.bs-print-table   { width:100%; border-collapse:collapse; border:1px solid #000; font-size:11.5px; }
+.bs-print-table td { padding:3px 8px; vertical-align:top; }
+.bs-print-table .bs-col-l { width:50%; border-right:1px solid #000; }
+.bs-print-hdr-row td { border-bottom:1px solid #000; font-weight:700; padding:5px 8px; }
+.bs-print-hdr-row .bs-hdr-label { letter-spacing:2px; }
+.bs-print-hdr-row .bs-hdr-amt   { text-align:right; white-space:nowrap; }
+.bs-grp-row td      { font-weight:700; padding-top:8px; }
+.bs-grp-row .bs-amt { text-align:right; white-space:nowrap; }
+.bs-sub-row td      { font-style:italic; padding-left:18px; }
+.bs-sub-row .bs-amt { text-align:right; white-space:nowrap; border-bottom:1px solid #000; display:inline-block; min-width:90px; }
+.bs-print-total-row td { border-top:1px solid #000; font-weight:700; padding:6px 8px; }
+.bs-print-total-row .bs-amt { text-align:right; white-space:nowrap; }
+.bs-empty { color:#666; font-style:italic; font-size:11px; padding-left:18px; }
 @media print {
-    .header,.sidebar,.section-header button { display:none!important }
-    .content-area { padding:0!important }
+    body * { visibility:hidden }
+    #printArea, #printArea * { visibility:visible }
+    #printArea { display:block!important; position:absolute; left:0; top:0; width:100%; }
 }
+@media screen { #printArea { display:none!important } }
 </style>
 </head>
 <body>
+<div id="printArea"><div class="bs-print" id="bsPrintContent"></div></div>
 <div class="app-container">
     <header class="header">
         <div class="logo-section">
@@ -59,7 +87,7 @@
                 <div style="display:flex;gap:8px;align-items:center">
                     <button class="btn btn-secondary btn-sm" onclick="window.location.href='https://shreefinserv-office.github.io/GSTaxOfy/pages/Reports/profitability.html'"><i class="fas fa-arrow-left"></i> Back</button>
                     <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff"></select>
-                    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printBalanceSheet()"><i class="fas fa-print"></i> Print</button>
                 </div>
             </div>
 
@@ -128,6 +156,7 @@
 <script src="../../js/layout.js"></script>
 <script>
 let firmData = {};
+let lastBSData = null; // { liab, asset, netProfit, p } — captured by renderBS(), used by printBalanceSheet()
 
 function buildFYOptions(selectId) {
     const sel = document.getElementById(selectId);
@@ -145,7 +174,7 @@ function fyToPeriod(fy) {
     const s2 = String(sy).slice(-2), e2 = String(ey).slice(-2);
     return { asAt:`31-Mar-${e2}`, startDate:`${sy}-04-01`, endDate:`${ey}-03-31` };
 }
-function fmt(n) { return '₹ ' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmt(n) { const sign = n < 0 ? '-' : ''; return sign + '₹ ' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 (async () => {
     const profile = await initLayout();
@@ -271,6 +300,8 @@ function buildSideHtml(groups, groupOrder) {
 }
 
 function renderBS(liab, asset, netProfit, p) {
+    lastBSData = { liab, asset, netProfit, p }; // for printBalanceSheet()
+
     const LIAB_ORDER  = ['Capital Account','Non-Current Liabilities','Current Liabilities'];
     const ASSET_ORDER = ['Non-Current Assets','Investments','Current Assets','Sundry Debtors','Cash Account','Bank Account'];
 
@@ -289,23 +320,91 @@ function renderBS(liab, asset, netProfit, p) {
             </div>
             <div class="stmt-grid">
                 <div class="stmt-side">
-                    <div class="stmt-col-hdr"><span>Liabilities</span><span>Amount (₹)</span></div>
-                    ${liabSide.html}
+                    <div class="stmt-side-rows">
+                        <div class="stmt-col-hdr"><span>Liabilities</span><span>Amount (₹)</span></div>
+                        ${liabSide.html}
+                    </div>
                     <div class="stmt-total"><span>Total</span><span>${fmt(grandTotal)}</span></div>
                 </div>
                 <div class="stmt-side stmt-divider">
-                    <div class="stmt-col-hdr"><span>Assets</span><span>Amount (₹)</span></div>
-                    ${assetSide.html}
+                    <div class="stmt-side-rows">
+                        <div class="stmt-col-hdr"><span>Assets</span><span>Amount (₹)</span></div>
+                        ${assetSide.html}
+                    </div>
                     <div class="stmt-total"><span>Total</span><span>${fmt(grandTotal)}</span></div>
                 </div>
             </div>
         </div>`;
 
-    document.getElementById('balanceCheck').innerHTML = `
-        <div class="balance-check" style="background:${balanced?'#f0fdf4':'#fef2f2'};border:1px solid ${balanced?'#bbf7d0':'#fecaca'};color:${balanced?'#166534':'#991b1b'}">
-            <i class="fas fa-${balanced?'check-circle':'exclamation-triangle'}" style="margin-right:8px"></i>
-            ${balanced ? 'Balance Sheet Tallies ✓' : `Out of balance by ₹ ${diff.toFixed(2)} — check journal entries`}
+    document.getElementById('balanceCheck').innerHTML = balanced ? '' : `
+        <div class="balance-check" style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b">
+            <i class="fas fa-exclamation-triangle" style="margin-right:8px"></i>
+            Out of balance by ₹ ${diff.toFixed(2)} — check journal entries
         </div>`;
+}
+
+// ── Build the same group/sub-item rows used on screen, but laid out for the
+// clean classic print format: group header + its total on one row, italic
+// indented sub-items below it (no separate "Sub-total" row).
+function buildPrintColumn(groups, groupOrder) {
+    let html = '', grandTotal = 0;
+    groupOrder.forEach(grp => {
+        const rows = groups[grp];
+        if (!rows || !rows.length) return;
+        const subtotal = rows.reduce((s,r)=>s+(r.amount||0),0);
+        grandTotal += subtotal;
+        html += `<tr class="bs-grp-row"><td>${grp}</td><td class="bs-amt">${fmtPlain(subtotal)}</td></tr>`;
+        rows.forEach(r => {
+            html += `<tr class="bs-sub-row"><td>${r.name}</td><td><span class="bs-amt">${fmtPlain(r.amount)}</span></td></tr>`;
+        });
+    });
+    if (!html) html = `<tr><td class="bs-empty" colspan="2">No entries</td></tr>`;
+    return { html, grandTotal };
+}
+
+function fmtPlain(n) { const sign = n < 0 ? '-' : ''; return sign + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function printBalanceSheet() {
+    if (!lastBSData) { showToast('Nothing to print yet.', 'error'); return; }
+    const { liab, asset, p } = lastBSData;
+
+    const LIAB_ORDER  = ['Capital Account','Non-Current Liabilities','Current Liabilities'];
+    const ASSET_ORDER = ['Non-Current Assets','Investments','Current Assets','Sundry Debtors','Cash Account','Bank Account'];
+
+    const liabCol  = buildPrintColumn(liab,  LIAB_ORDER);
+    const assetCol = buildPrintColumn(asset, ASSET_ORDER);
+    const grandTotal = Math.max(liabCol.grandTotal, assetCol.grandTotal);
+
+    const addrLines = (firmData.firm_address || '').split('\n').filter(Boolean);
+
+    document.getElementById('bsPrintContent').innerHTML = `
+        <div class="bs-print-firm">
+            <div class="bs-print-firmname">${firmData.firm_name || ''}</div>
+            ${addrLines.map(l => `<div class="bs-print-addr">${l}</div>`).join('')}
+            ${firmData.email_id ? `<div class="bs-print-email">E-Mail : ${firmData.email_id}</div>` : ''}
+        </div>
+        <div class="bs-print-title">Balance Sheet</div>
+        <div class="bs-print-period">as on ${p.asAt}</div>
+        <table class="bs-print-table">
+            <tr class="bs-print-hdr-row">
+                <td class="bs-col-l"><span class="bs-hdr-label">Liabilities</span></td>
+                <td><span class="bs-hdr-label">Assets</span></td>
+            </tr>
+            <tr>
+                <td class="bs-col-l" style="border-right:1px solid #000;padding:0">
+                    <table style="width:100%;border-collapse:collapse">${liabCol.html}</table>
+                </td>
+                <td style="padding:0">
+                    <table style="width:100%;border-collapse:collapse">${assetCol.html}</table>
+                </td>
+            </tr>
+            <tr class="bs-print-total-row">
+                <td class="bs-col-l">Total<span class="bs-amt" style="float:right">${fmtPlain(grandTotal)}</span></td>
+                <td>Total<span class="bs-amt" style="float:right">${fmtPlain(grandTotal)}</span></td>
+            </tr>
+        </table>`;
+
+    setTimeout(() => window.print(), 200);
 }
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
