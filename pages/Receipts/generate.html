@@ -35,8 +35,10 @@
         .rcpt-sign       { font-size: 14px; font-weight: 600; color: #1f2937; margin-top: 28px; }
         .rcpt-footer     { margin-top: 16px; font-size: 12px; color: #888; border-top: 1px solid #e5e7eb; padding-top: 10px; text-align: center; }
 
+        #printArea { display: none; }
         @media print {
             body * { visibility: hidden; }
+            #printArea { display: block; }
             #printArea, #printArea * { visibility: visible; }
             #printArea { position: absolute; left: 0; top: 0; width: 100%; padding: 30px; box-sizing: border-box; }
             .rcpt-paper { border: none; border-radius: 0; padding: 0; box-shadow: none; }
@@ -116,11 +118,12 @@
                         <select id="rcp_mode"
                             style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;background:#fff;box-sizing:border-box">
                             <option value="Cash">Cash</option>
+                            <option value="UPI/Online Banking">UPI/Online Banking</option>
                             <option value="UPI">UPI</option>
                             <option value="NEFT">NEFT</option>
                             <option value="RTGS">RTGS</option>
                             <option value="Cheque">Cheque</option>
-                            <option value="Other">Other</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom:12px">
@@ -151,7 +154,7 @@
                         </h3>
                         <button class="btn btn-danger btn-sm" onclick="printReceipt()" disabled><i class="fas fa-print"></i> Print / PDF</button>
                     </div>
-                    <div id="printArea">
+                    <div id="receiptPreviewPanel">
                         <div class="rcpt-paper" id="receiptPreview">
                             <div style="text-align:center;padding:40px;color:#d1d5db">
                                 <i class="fas fa-receipt" style="font-size:40px;display:block;margin-bottom:10px"></i>
@@ -165,6 +168,11 @@
     </div>
 </div>
 
+<!-- Print Receipt Hidden Area (kept outside the app layout, like Receipts/list.html) -->
+<div id="printArea">
+    <div class="rcpt-paper" id="printReceiptPreview"></div>
+</div>
+
 <div class="modal-overlay" id="logoutModal">
     <div class="modal-box" style="max-width:340px">
         <div class="modal-header"><span class="modal-title">Confirm Logout</span><button class="modal-close" onclick="closeModal('logoutModal')">&times;</button></div>
@@ -172,6 +180,22 @@
         <div style="display:flex;gap:10px;justify-content:center">
             <button class="btn btn-secondary" onclick="closeModal('logoutModal')">Cancel</button>
             <button class="btn btn-danger" onclick="confirmLogout()">Yes, Logout</button>
+        </div>
+    </div>
+</div>
+
+<!-- Receipt Saved Successfully Modal -->
+<div class="modal-overlay" id="rcpSavedModal">
+    <div class="modal-box" style="max-width:380px;text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+            <i class="fas fa-check" style="color:#16a34a;font-size:24px"></i>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:#1f2937;margin-bottom:4px">Receipt Saved!</div>
+        <div style="font-size:13px;color:#6b7280;margin-bottom:20px">Receipt <strong id="savedRcpNoLabel" style="color:#2563eb">—</strong> has been saved successfully.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="btn btn-danger" style="width:100%" onclick="printSavedReceipt()"><i class="fas fa-print"></i> Print / PDF</button>
+            <button class="btn btn-primary" style="width:100%" onclick="startNextReceipt()"><i class="fas fa-plus"></i> Create Next Receipt</button>
+            <button class="btn btn-secondary" style="width:100%" onclick="closeModal('rcpSavedModal');window.location.href=ROUTES.receiptList()">View All Receipts</button>
         </div>
     </div>
 </div>
@@ -184,6 +208,7 @@
 <script>
 let allClients = [], firmData = {}, clientInvoices = [];
 let editId = null, editingReceipt = null;
+let lastSavedReceiptHtml = null, lastSavedReceiptNo = null;
 
 (async () => {
     const profile = await initLayout();
@@ -344,7 +369,7 @@ function refreshRcpPreview() {
 
     if (!no || !date || !client || !amount) {
         showToast('Fill Receipt No., Date, Client and Amount.', 'error');
-        return;
+        return null;
     }
 
     // Format date as DD/MM/YYYY
@@ -356,7 +381,7 @@ function refreshRcpPreview() {
     const refPart = ref ? ` (Ref: ${ref})` : '';
     const bodyText = `Received from <strong>${client.name}</strong> amount of <strong>₹${amount.toFixed(2)}</strong> by <strong>${mode}</strong>${refPart}${invPart}.`;
 
-    document.getElementById('receiptPreview').innerHTML = `
+    const receiptHtml = `
         <div class="rcpt-firm-name">${firmData.firm_name || ''}</div>
         <div class="rcpt-firm-addr">${(firmData.firm_address || '').replace(/\n/g, '<br>')}</div>
         ${firmData.phone ? `<div class="rcpt-firm-phone">${firmData.phone}${firmData.email_id ? ' | ' + firmData.email_id : ''}</div>` : ''}
@@ -377,11 +402,73 @@ function refreshRcpPreview() {
             Thank You.<br>
             This is computer generated receipt no signature required.
         </div>`;
+
+    document.getElementById('receiptPreview').innerHTML = receiptHtml;
+    return receiptHtml;
 }
 
 function printReceipt() {
-    refreshRcpPreview();
+    const html = refreshRcpPreview();
+    if (!html) return; // validation failed inside refreshRcpPreview (toast already shown)
+    triggerReceiptPrint(html);
+}
+
+// ── Print the receipt that was just saved, even after the form has been
+// cleared for the next entry — uses the captured snapshot, not live form state.
+function printSavedReceipt() {
+    if (!lastSavedReceiptHtml) return;
+    closeModal('rcpSavedModal');
+    triggerReceiptPrint(lastSavedReceiptHtml);
+}
+
+// ── Shared print trigger: pushes receipt HTML into the dedicated hidden
+// #printArea (kept outside the app layout, same as Receipts/list.html) so the
+// print stylesheet can isolate it cleanly — the on-screen split layout never
+// reaches the printer.
+function triggerReceiptPrint(html) {
+    document.getElementById('printReceiptPreview').innerHTML = html;
     setTimeout(() => window.print(), 300);
+}
+
+// ── Close the success popup and make sure the form is ready for a new entry
+async function startNextReceipt() {
+    closeModal('rcpSavedModal');
+    await resetReceiptForm();
+}
+
+// ── Clear the form back to a blank "new receipt" state, with a fresh
+// auto-generated receipt number, ready for the next entry.
+async function resetReceiptForm() {
+    editId = null;
+    editingReceipt = null;
+
+    document.getElementById('pageTitle').innerHTML = '<i class="fas fa-receipt"></i> Generate Receipt';
+    document.getElementById('saveBtnLabel').textContent = 'Save Receipt';
+
+    document.getElementById('rcp_client').value = '';
+    document.getElementById('rcp_amount').value = '';
+    document.getElementById('rcp_mode').value   = 'Cash';
+    document.getElementById('rcp_ref').value    = '';
+    document.getElementById('rcp_notes').value  = '';
+    document.getElementById('rcp_date').value   = new Date().toISOString().split('T')[0];
+    document.getElementById('invPickerSection').style.display = 'none';
+    document.getElementById('rcp_invoice').innerHTML = '<option value="">— No specific invoice —</option>';
+    document.getElementById('balanceInfo').style.display = 'none';
+
+    document.getElementById('receiptPreview').innerHTML = `
+        <div style="text-align:center;padding:40px;color:#d1d5db">
+            <i class="fas fa-receipt" style="font-size:40px;display:block;margin-bottom:10px"></i>
+            <p style="font-size:13px;color:#9ca3af">Fill in details and click Preview</p>
+        </div>`;
+
+    // Auto-generate the next receipt number
+    const { count } = await _supabase.from('receipts').select('id', { count: 'exact', head: true });
+    const now = new Date();
+    const fy  = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const fyStr = String(fy).slice(2) + String(fy + 1).slice(2);
+    document.getElementById('rcp_no').value = `RC${fyStr}/${String((count || 0) + 1).padStart(3, '0')}`;
+    document.getElementById('rcp_no').readOnly = false;
+    document.getElementById('rcp_no').style.background = '';
 }
 
 async function saveReceipt() {
@@ -460,9 +547,21 @@ async function saveReceipt() {
                 .eq('id', invId);
         }
 
-        refreshRcpPreview();
-        showToast(editId ? 'Receipt updated successfully!' : 'Receipt saved successfully!', 'success');
-        if (editId) setTimeout(() => window.location.href = ROUTES.receiptList(), 700);
+        // Build the print-ready preview from the data we just saved, and capture
+        // a snapshot BEFORE the form gets cleared below — this is what the
+        // "Print / PDF" button in the success popup will reuse.
+        lastSavedReceiptHtml = refreshRcpPreview();
+        lastSavedReceiptNo   = no;
+
+        if (editId) {
+            showToast('Receipt updated successfully!', 'success');
+            setTimeout(() => window.location.href = ROUTES.receiptList(), 700);
+        } else {
+            showToast('Receipt saved successfully!', 'success');
+            document.getElementById('savedRcpNoLabel').textContent = no;
+            openModal('rcpSavedModal');
+            await resetReceiptForm();
+        }
     } catch (err) {
         showToast(err.message, 'error');
     } finally {
@@ -488,16 +587,38 @@ async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clie
 
         const isCash = (mode || '').toLowerCase() === 'cash';
         const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
+
+        // Same advance-vs-income distinction as createReceiptJournalEntry: no
+        // invoice linked means this is still an advance (liability), not income.
+        const isAdvance = !invoiceId;
+        const crAccName  = isAdvance ? 'Advance from Clients' : 'Professional Receipts';
+
         const { data: accs } = await _supabase.from('accounts')
-            .select('id,name').in('name', [drAccName, 'Professional Receipts']);
-        if (!accs || accs.length < 2) return;
-        const drAcc = accs.find(a => a.name === drAccName);
-        const crAcc = accs.find(a => a.name === 'Professional Receipts');
-        if (!drAcc || !crAcc) return;
+            .select('id,name').in('name', [drAccName, crAccName]);
+        const drAcc = (accs||[]).find(a => a.name === drAccName);
+        let   crAcc = (accs||[]).find(a => a.name === crAccName);
+        if (!drAcc) return;
+
+        if (!crAcc && isAdvance) {
+            const { data: created, error: accErr } = await _supabase.from('accounts').insert({
+                name: 'Advance from Clients',
+                account_type: 'Liability',
+                group_name: 'Current Liabilities',
+                sub_type: null,
+                balance_type: 'Cr',
+                opening_balance: 0,
+                is_active: true
+            }).select('id,name').single();
+            if (accErr) { console.warn('Could not create Advance from Clients account:', accErr.message); return; }
+            crAcc = created;
+        }
+        if (!crAcc) return;
 
         await _supabase.from('journal_entries').update({
             entry_date: date,
-            narration:  `Being receipt no. ${no} received via ${mode}`
+            narration:  isAdvance
+                ? `Being advance received vide receipt no. ${no} via ${mode} (no invoice referenced)`
+                : `Being receipt no. ${no} received via ${mode}`
         }).eq('id', entry.id);
 
         const { data: lines } = await _supabase.from('journal_lines')
@@ -514,7 +635,8 @@ async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clie
 
         await _supabase.from('journal_lines').update({
             account_id: crAcc.id, dr_amount: 0, cr_amount: amount,
-            invoice_id: invoiceId || null, narration: `Receipt: ${no}`
+            client_id: clientId, invoice_id: invoiceId || null,
+            narration: isAdvance ? `Advance: ${no}` : `Receipt: ${no}`
         }).eq('id', crLine.id);
 
     } catch (e) {
@@ -528,14 +650,38 @@ async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, cl
         const isCash = (mode || '').toLowerCase() === 'cash';
         const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
 
-        const { data: accs } = await _supabase.from('accounts')
-            .select('id,name').in('name', [drAccName, 'Professional Receipts', 'Sundry Debtors']);
-        if (!accs || accs.length < 2) return;  // accounts not set up yet — skip silently
+        // A receipt with no invoice reference is money received in advance —
+        // it hasn't been earned/invoiced yet, so it must be credited to a
+        // liability account ("Advance from Clients"), not straight to income.
+        // Once an invoice is later raised against the client, this advance can
+        // be adjusted against it (handled separately, not on this entry).
+        const isAdvance = !invoiceId;
+        const crAccName  = isAdvance ? 'Advance from Clients' : 'Professional Receipts';
 
-        const drAcc     = accs.find(a => a.name === drAccName);
-        const crAcc     = accs.find(a => a.name === 'Professional Receipts');
-        const debtorAcc = accs.find(a => a.name === 'Sundry Debtors');
-        if (!drAcc || !crAcc) return;
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', [drAccName, crAccName, 'Sundry Debtors']);
+
+        const drAcc     = (accs||[]).find(a => a.name === drAccName);
+        let   crAcc      = (accs||[]).find(a => a.name === crAccName);
+        const debtorAcc = (accs||[]).find(a => a.name === 'Sundry Debtors');
+        if (!drAcc) return; // Cash/Bank account not set up yet — skip silently
+
+        // Auto-create the "Advance from Clients" liability account the first
+        // time it's needed, so this works without manual setup.
+        if (!crAcc && isAdvance) {
+            const { data: created, error: accErr } = await _supabase.from('accounts').insert({
+                name: 'Advance from Clients',
+                account_type: 'Liability',
+                group_name: 'Current Liabilities',
+                sub_type: null,
+                balance_type: 'Cr',
+                opening_balance: 0,
+                is_active: true
+            }).select('id,name').single();
+            if (accErr) { console.warn('Could not create Advance from Clients account:', accErr.message); return; }
+            crAcc = created;
+        }
+        if (!crAcc) return; // Professional Receipts not set up yet — skip silently
 
         // 2. Financial year from date
         const d  = new Date(date);
@@ -554,7 +700,9 @@ async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, cl
             entry_no:      jeNo,
             entry_date:    date,
             entry_type:    'Receipt',
-            narration:     `Being receipt no. ${no} received via ${mode}`,
+            narration:     isAdvance
+                ? `Being advance received vide receipt no. ${no} via ${mode} (no invoice referenced)`
+                : `Being receipt no. ${no} received via ${mode}`,
             is_auto:       true,
             source_table:  'receipts',
             source_id:     receiptId,
@@ -564,15 +712,14 @@ async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, cl
         if (jeErr) { console.warn('JE header error:', jeErr.message); return; }
 
         // 5. Build lines:
-        // Dr: Cash/Bank A/c   (amount received increases asset)
-        // Cr: Professional Receipts A/c (income recognised)
-        // If invoice linked: also Dr Sundry Debtors offset (they were previously Dr'd when invoice raised)
-        // Simple receipt model: Dr Cash/Bank | Cr Professional Receipts
+        // Dr: Cash/Bank A/c (amount received increases asset)
+        // Cr: Professional Receipts A/c — when the receipt is linked to an invoice (income recognised)
+        //     OR Advance from Clients A/c — when no invoice is linked (liability, not yet earned)
         const lines = [
             { entry_id:entry.id, account_id:drAcc.id,  dr_amount:amount, cr_amount:0,
               receipt_id:receiptId, client_id:clientId  },
             { entry_id:entry.id, account_id:crAcc.id,  dr_amount:0, cr_amount:amount,
-              receipt_id:receiptId, invoice_id:invoiceId }
+              receipt_id:receiptId, client_id:clientId, invoice_id:invoiceId || null }
         ];
 
         const { error: lErr } = await _supabase.from('journal_lines').insert(lines);
