@@ -409,19 +409,56 @@ async function confirmDeleteReceipt() {
     }
 }
 
-// ── Receipt Journal Entry (Dr Cash/Bank | Cr Professional Receipts) ──
-async function createReceiptJournalEntry({ receiptId, receiptNo, receiptDate, amount, paymentMode, clientId, invoiceId }) {
+// ── Receipt Journal Entry (Dr Cash/Bank | Cr Professional Receipts / Advance from Clients) ──
+async function createReceiptJournalEntry({ receiptId, receiptNo, receiptDate, amount, paymentMode, clientId, invoiceId, bankAccountId }) {
     try {
-        const isCash   = (paymentMode || '').toLowerCase() === 'cash';
-        const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
+        const isCash = (paymentMode || '').toLowerCase() === 'cash';
 
-        const { data: accs } = await _supabase.from('accounts')
-            .select('id,name').in('name', [drAccName, 'Professional Receipts']);
-        if (!accs || accs.length < 2) return false;
+        // A receipt with no invoice reference is an advance — not yet earned —
+        // so it must be credited to a liability account, not straight to income.
+        const isAdvance = !invoiceId;
+        const crAccName  = isAdvance ? 'Advance from Clients' : 'Professional Receipts';
 
-        const drAcc = accs.find(a => a.name === drAccName);
-        const crAcc = accs.find(a => a.name === 'Professional Receipts');
-        if (!drAcc || !crAcc) return false;
+        let drAcc = null;
+        if (isCash) {
+            const { data: cashAcc } = await _supabase.from('accounts')
+                .select('id,name').eq('name', 'Cash-in-Hand').maybeSingle();
+            drAcc = cashAcc;
+        } else {
+            // Use this receipt's own saved bank account if we have it; otherwise
+            // (older receipts created before this field existed) fall back to
+            // the single bank account on file — if there's more than one, we
+            // can't safely guess which was used, so that receipt is skipped.
+            let resolvedBankId = bankAccountId;
+            if (!resolvedBankId) {
+                const { data: banks } = await _supabase.from('accounts')
+                    .select('id,name').eq('group_name', 'Bank Account').eq('is_active', true);
+                if ((banks || []).length === 1) resolvedBankId = banks[0].id;
+                else { console.warn(`Receipt ${receiptNo}: can't determine which bank account was used (none saved, and multiple bank accounts exist) — skipped.`); return false; }
+            }
+            const { data: bankAcc } = await _supabase.from('accounts')
+                .select('id,name').eq('id', resolvedBankId).maybeSingle();
+            drAcc = bankAcc;
+        }
+        if (!drAcc) return false;
+
+        let { data: crAcc } = await _supabase.from('accounts')
+            .select('id,name').eq('name', crAccName).maybeSingle();
+
+        if (!crAcc && isAdvance) {
+            const { data: created, error: accErr } = await _supabase.from('accounts').insert({
+                name: 'Advance from Clients',
+                account_type: 'Liability',
+                group_name: 'Current Liabilities',
+                sub_type: null,
+                balance_type: 'Cr',
+                opening_balance: 0,
+                is_active: true
+            }).select('id,name').single();
+            if (accErr) { console.warn('Could not create Advance from Clients account:', accErr.message); return false; }
+            crAcc = created;
+        }
+        if (!crAcc) return false;
 
         const d  = new Date(receiptDate);
         const yr = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
@@ -437,7 +474,9 @@ async function createReceiptJournalEntry({ receiptId, receiptNo, receiptDate, am
             entry_no:       jeNo,
             entry_date:     receiptDate,
             entry_type:     'Receipt',
-            narration:      `Being receipt no. ${receiptNo} received via ${paymentMode}`,
+            narration:      isAdvance
+                ? `Being advance received vide receipt no. ${receiptNo} via ${paymentMode} (no invoice referenced)`
+                : `Being receipt no. ${receiptNo} received via ${paymentMode}`,
             is_auto:        true,
             source_table:   'receipts',
             source_id:      receiptId,
@@ -449,10 +488,10 @@ async function createReceiptJournalEntry({ receiptId, receiptNo, receiptDate, am
         const { error: lErr } = await _supabase.from('journal_lines').insert([
             { entry_id: entry.id, account_id: drAcc.id, dr_amount: amount, cr_amount: 0,
               receipt_id: receiptId, client_id: clientId,
-              narration: `${isCash ? 'Cash' : 'Bank'} received: ${receiptNo}` },
+              narration: `${drAcc.name} received: ${receiptNo}` },
             { entry_id: entry.id, account_id: crAcc.id, dr_amount: 0, cr_amount: amount,
-              receipt_id: receiptId, invoice_id: invoiceId || null,
-              narration: `Receipt: ${receiptNo}` }
+              receipt_id: receiptId, client_id: clientId, invoice_id: invoiceId || null,
+              narration: isAdvance ? `Advance: ${receiptNo}` : `Receipt: ${receiptNo}` }
         ]);
         if (lErr) { console.warn('Receipt JE lines error:', lErr.message); return false; }
         return true;
@@ -471,7 +510,7 @@ async function backfillMissingJEs() {
     try {
         // 1. All receipts
         const { data: receipts } = await _supabase.from('receipts')
-            .select('id, receipt_no, receipt_date, amount, payment_mode, client_id, invoice_id')
+            .select('id, receipt_no, receipt_date, amount, payment_mode, client_id, invoice_id, bank_account_id')
             .order('receipt_date', { ascending: true });
 
         if (!receipts?.length) { showToast('No receipts found.', 'info'); return; }
@@ -498,7 +537,8 @@ async function backfillMissingJEs() {
                 amount:      parseFloat(r.amount || 0),
                 paymentMode: r.payment_mode,
                 clientId:    r.client_id,
-                invoiceId:   r.invoice_id
+                invoiceId:   r.invoice_id,
+                bankAccountId: r.bank_account_id
             });
             ok ? created++ : failed++;
         }
