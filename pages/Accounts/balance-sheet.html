@@ -245,7 +245,7 @@ async function loadData() {
     // System asset entries (Bank Account is no longer injected here — real bank
     // accounts like "State Bank of India-75608" already appear via the loop
     // above, sourced from their actual journal_lines balances)
-    asset['Sundry Debtors'].push({ name:'Sundry Debtors (Outstanding Invoices)', amount:sundryDebtors });
+    asset['Sundry Debtors'].push({ name:'Sundry Debtors', amount:sundryDebtors });
     asset['Cash Account'].push({ name:'Cash-in-Hand', amount:cashAmt });
 
     renderBS(liab, asset, netProfit, p);
