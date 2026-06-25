@@ -2,7 +2,7 @@
 // To push an update: bump APP_VERSION below, commit to GitHub.
 // Users clicking "Check for Update" will get the new version automatically.
 
-const APP_VERSION = '6.7.3';
+const APP_VERSION = '6.7.4';
 const CACHE_NAME  = 'gstaxofy-' + APP_VERSION;
 const CACHE_BASE  = 'gstaxofy';
 
