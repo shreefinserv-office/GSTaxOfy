@@ -208,14 +208,16 @@ async function loadData() {
         .gte('invoice_date',p.startDate).lte('invoice_date',p.endDate);
     const sundryDebtors = (debtors||[]).reduce((s,i)=>s+parseFloat(i.total_amount||0),0);
 
-    // Cash & Bank from receipts
+    // Cash from receipts (Bank Account removed from here — it now comes purely
+    // from the real bank account(s) in the chart of accounts below, via their
+    // actual journal balances, so it supports any number of bank accounts and
+    // matches whatever you've actually named/kept in Income & Expenses).
     const { data: rcpts } = await _supabase.from('receipts')
         .select('amount,payment_mode')
         .gte('receipt_date',p.startDate).lte('receipt_date',p.endDate);
-    let cashAmt=0, bankAmt=0;
+    let cashAmt=0;
     (rcpts||[]).forEach(r => {
-        const amt=parseFloat(r.amount||0);
-        (r.payment_mode||'').toLowerCase()==='cash' ? cashAmt+=amt : bankAmt+=amt;
+        if ((r.payment_mode||'').toLowerCase()==='cash') cashAmt += parseFloat(r.amount||0);
     });
 
     // Build groups
@@ -226,7 +228,7 @@ async function loadData() {
     ASSET_GROUPS.forEach(g=>asset[g]=[]);
 
     (bsAccs||[]).forEach(acc => {
-        if (['Sundry Debtors','Cash-in-Hand','Bank Account'].includes(acc.name) && acc.is_system) return;
+        if (['Sundry Debtors','Cash-in-Hand'].includes(acc.name) && acc.is_system) return;
         const b=ab[acc.id]||{dr:0,cr:0}, ob=parseFloat(acc.opening_balance||0);
         const net = acc.balance_type==='Dr' ? ob+b.dr-b.cr : ob+b.cr-b.dr;
         if (liab[acc.group_name])  liab[acc.group_name].push({name:acc.name, amount:net});
@@ -240,10 +242,11 @@ async function loadData() {
         cls: netProfit>=0 ? 'highlight-row' : 'highlight-loss'
     });
 
-    // System asset entries
+    // System asset entries (Bank Account is no longer injected here — real bank
+    // accounts like "State Bank of India-75608" already appear via the loop
+    // above, sourced from their actual journal_lines balances)
     asset['Sundry Debtors'].push({ name:'Sundry Debtors (Outstanding Invoices)', amount:sundryDebtors });
     asset['Cash Account'].push({ name:'Cash-in-Hand', amount:cashAmt });
-    asset['Bank Account'].push({ name:'Bank Account', amount:bankAmt });
 
     renderBS(liab, asset, netProfit, p);
 }
