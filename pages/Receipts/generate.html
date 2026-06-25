@@ -115,7 +115,7 @@
                     </div>
                     <div class="form-group" style="margin-bottom:12px">
                         <label style="font-size:12px">Payment Mode *</label>
-                        <select id="rcp_mode"
+                        <select id="rcp_mode" onchange="onPaymentModeChange()"
                             style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;background:#fff;box-sizing:border-box">
                             <option value="Cash">Cash</option>
                             <option value="UPI/Online Banking">UPI/Online Banking</option>
@@ -124,6 +124,12 @@
                             <option value="RTGS">RTGS</option>
                             <option value="Cheque">Cheque</option>
                             <option value="Bank Transfer">Bank Transfer</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="bankAccountSection" style="display:none;margin-bottom:12px">
+                        <label style="font-size:12px">Bank Account *</label>
+                        <select id="rcp_bank_account"
+                            style="padding:8px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;width:100%;background:#fff;box-sizing:border-box">
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom:12px">
@@ -232,6 +238,8 @@ let lastSavedReceiptHtml = null, lastSavedReceiptNo = null;
     allClients = clients || [];
     allClients.forEach(c => document.getElementById('rcp_client').innerHTML += `<option value="${c.id}">${c.name}</option>`);
 
+    await loadBankAccounts();
+
     if (editId) {
         await loadReceiptForEdit(editId);
     } else {
@@ -266,6 +274,8 @@ async function loadReceiptForEdit(id) {
     document.getElementById('rcp_mode').value    = r.payment_mode || 'Cash';
     document.getElementById('rcp_ref').value     = r.reference_no || '';
     document.getElementById('rcp_notes').value   = r.notes || '';
+    onPaymentModeChange();
+    if (r.bank_account_id) document.getElementById('rcp_bank_account').value = r.bank_account_id;
 
     // Load this client's unpaid invoices, then make sure the receipt's
     // own linked invoice is present too (even if it's since been marked paid).
@@ -287,6 +297,28 @@ async function loadReceiptForEdit(id) {
     }
 
     refreshRcpPreview();
+}
+
+// ── Bank accounts (real chart-of-accounts rows, group "Bank Account") ──
+let bankAccounts = [];
+async function loadBankAccounts() {
+    const { data } = await _supabase.from('accounts')
+        .select('id,name').eq('group_name', 'Bank Account').eq('is_active', true).order('name');
+    bankAccounts = data || [];
+
+    const sel = document.getElementById('rcp_bank_account');
+    sel.innerHTML = bankAccounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+
+    // Remember the last bank account used on this device, default to it (or the first one)
+    const lastUsed = localStorage.getItem('gstaxofy_last_bank_account_id');
+    if (lastUsed && bankAccounts.some(a => String(a.id) === lastUsed)) sel.value = lastUsed;
+
+    onPaymentModeChange();
+}
+
+function onPaymentModeChange() {
+    const isCash = document.getElementById('rcp_mode').value.toLowerCase() === 'cash';
+    document.getElementById('bankAccountSection').style.display = isCash ? 'none' : 'block';
 }
 
 async function onRcpClientChange() {
@@ -484,10 +516,14 @@ async function saveReceipt() {
     const invOpt = invSel.options[invSel.selectedIndex];
     const invAmt = parseFloat(invOpt?.dataset?.amt || 0);
 
+    const isCash = mode.toLowerCase() === 'cash';
+    const bankAccountId = isCash ? null : (parseInt(document.getElementById('rcp_bank_account').value) || null);
+
     if (!no)     { showToast('Receipt number required.', 'error'); return; }
     if (!date)   { showToast('Date required.', 'error'); return; }
     if (!cid)    { showToast('Select a client.', 'error'); return; }
     if (!amount) { showToast('Enter amount received.', 'error'); return; }
+    if (!isCash && !bankAccountId) { showToast('Select a bank account.', 'error'); return; }
 
     const btn = document.getElementById('saveRcpBtn');
     const btnLabel = document.getElementById('saveBtnLabel');
@@ -506,6 +542,7 @@ async function saveReceipt() {
                 invoice_id:   invId,
                 amount,
                 payment_mode: mode,
+                bank_account_id: bankAccountId,
                 reference_no: ref,
                 notes,
                 updated_at: new Date().toISOString()
@@ -514,7 +551,7 @@ async function saveReceipt() {
             receiptId = editId;
 
             // Keep the linked journal entry's lines in sync with the new amount/mode
-            await syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId: cid, invoiceId: invId });
+            await syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId: cid, invoiceId: invId, bankAccountId });
 
             await logAudit('UPDATE_RECEIPT', 'receipts', editId, null, { no, amount, client_id: cid });
         } else {
@@ -526,6 +563,7 @@ async function saveReceipt() {
                 invoice_id:   invId,
                 amount,
                 payment_mode: mode,
+                bank_account_id: bankAccountId,
                 reference_no: ref,
                 notes,
                 created_at: new Date().toISOString(),
@@ -535,10 +573,13 @@ async function saveReceipt() {
             receiptId = savedReceipt.id;
 
             // ── Auto Journal Entry for new Receipt ──
-            await createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId: cid, invoiceId: invId });
+            await createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId: cid, invoiceId: invId, bankAccountId });
 
             await logAudit('CREATE_RECEIPT', 'receipts', null, null, { no, amount, client_id: cid });
         }
+
+        // Remember this bank account as the default for next time
+        if (bankAccountId) localStorage.setItem('gstaxofy_last_bank_account_id', String(bankAccountId));
 
         // If full or over payment against invoice → mark invoice paid
         if (invId && invAmt && amount >= invAmt) {
@@ -573,7 +614,7 @@ async function saveReceipt() {
 
 // ── Sync existing Journal Entry when a Receipt is edited ─────
 // (avoids creating a duplicate JE; updates header narration + line amounts/accounts)
-async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId }) {
+async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId, bankAccountId }) {
     try {
         const { data: entry } = await _supabase.from('journal_entries')
             .select('id').eq('source_table', 'receipts').eq('source_id', receiptId)
@@ -581,23 +622,32 @@ async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clie
 
         if (!entry) {
             // No JE existed yet (e.g. created before JE feature, or backfill skipped it) — create one now.
-            await createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId });
+            await createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId, bankAccountId });
             return;
         }
 
         const isCash = (mode || '').toLowerCase() === 'cash';
-        const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
 
         // Same advance-vs-income distinction as createReceiptJournalEntry: no
         // invoice linked means this is still an advance (liability), not income.
         const isAdvance = !invoiceId;
         const crAccName  = isAdvance ? 'Advance from Clients' : 'Professional Receipts';
 
-        const { data: accs } = await _supabase.from('accounts')
-            .select('id,name').in('name', [drAccName, crAccName]);
-        const drAcc = (accs||[]).find(a => a.name === drAccName);
-        let   crAcc = (accs||[]).find(a => a.name === crAccName);
+        let drAcc = null;
+        if (isCash) {
+            const { data: cashAcc } = await _supabase.from('accounts')
+                .select('id,name').eq('name', 'Cash-in-Hand').maybeSingle();
+            drAcc = cashAcc;
+        } else if (bankAccountId) {
+            const { data: bankAcc } = await _supabase.from('accounts')
+                .select('id,name').eq('id', bankAccountId).maybeSingle();
+            drAcc = bankAcc;
+        }
         if (!drAcc) return;
+
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', [crAccName]);
+        let   crAcc = (accs||[]).find(a => a.name === crAccName);
 
         if (!crAcc && isAdvance) {
             const { data: created, error: accErr } = await _supabase.from('accounts').insert({
@@ -630,7 +680,7 @@ async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clie
 
         await _supabase.from('journal_lines').update({
             account_id: drAcc.id, dr_amount: amount, cr_amount: 0,
-            client_id: clientId, narration: `${isCash ? 'Cash' : 'Bank'} received: ${no}`
+            client_id: clientId, narration: `${drAcc.name} received: ${no}`
         }).eq('id', drLine.id);
 
         await _supabase.from('journal_lines').update({
@@ -644,11 +694,10 @@ async function syncReceiptJournalEntry({ receiptId, date, no, amount, mode, clie
     }
 }
 
-async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId }) {
+async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, clientId, invoiceId, bankAccountId }) {
     try {
         // 1. Resolve account IDs from accounts table
         const isCash = (mode || '').toLowerCase() === 'cash';
-        const drAccName = isCash ? 'Cash-in-Hand' : 'Bank Account';
 
         // A receipt with no invoice reference is money received in advance —
         // it hasn't been earned/invoiced yet, so it must be credited to a
@@ -658,13 +707,26 @@ async function createReceiptJournalEntry({ receiptId, date, no, amount, mode, cl
         const isAdvance = !invoiceId;
         const crAccName  = isAdvance ? 'Advance from Clients' : 'Professional Receipts';
 
-        const { data: accs } = await _supabase.from('accounts')
-            .select('id,name').in('name', [drAccName, crAccName, 'Sundry Debtors']);
+        let drAcc = null;
+        if (isCash) {
+            const { data: cashAcc } = await _supabase.from('accounts')
+                .select('id,name').eq('name', 'Cash-in-Hand').maybeSingle();
+            drAcc = cashAcc;
+        } else if (bankAccountId) {
+            // Debit whichever real bank account the user picked on the form —
+            // supports any number of bank accounts, not just a single hardcoded one.
+            const { data: bankAcc } = await _supabase.from('accounts')
+                .select('id,name').eq('id', bankAccountId).maybeSingle();
+            drAcc = bankAcc;
+        }
+        if (!drAcc) return; // Cash/Bank account not set up or not selected — skip silently
 
-        const drAcc     = (accs||[]).find(a => a.name === drAccName);
+        const { data: accs } = await _supabase.from('accounts')
+            .select('id,name').in('name', [crAccName, 'Sundry Debtors']);
+
         let   crAcc      = (accs||[]).find(a => a.name === crAccName);
         const debtorAcc = (accs||[]).find(a => a.name === 'Sundry Debtors');
-        if (!drAcc) return; // Cash/Bank account not set up yet — skip silently
+
 
         // Auto-create the "Advance from Clients" liability account the first
         // time it's needed, so this works without manual setup.
