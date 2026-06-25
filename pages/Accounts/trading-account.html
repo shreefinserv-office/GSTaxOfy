@@ -15,8 +15,9 @@
 .stmt-firm-sub   { font-size:12px;color:#6b7280;margin-top:2px }
 .stmt-title      { font-size:14px;font-weight:700;color:#1f2937;margin-top:4px }
 .stmt-period     { font-size:12px;color:#374151;margin-top:1px }
-.stmt-grid       { display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d1d5db }
-.stmt-side       { padding:0 }
+.stmt-grid       { display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d1d5db;align-items:stretch }
+.stmt-side       { display:flex;flex-direction:column }
+.stmt-side-rows  { flex:1 }
 .stmt-col-hdr    { display:grid;grid-template-columns:1fr auto;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#fff;background:#374151 }
 .stmt-row        { display:grid;grid-template-columns:1fr auto;padding:7px 14px 7px 20px;font-size:13px;border-bottom:1px solid #f3f4f6 }
 .stmt-row:last-child { border-bottom:none }
@@ -27,17 +28,39 @@
 .stmt-divider    { border-left:1px solid #d1d5db }
 .transfer-row    { display:grid;grid-template-columns:1fr auto;padding:7px 14px 7px 20px;font-size:13px;font-weight:700;border-bottom:1px solid #f3f4f6;color:#166534 }
 .transfer-row-dr { color:#991b1b }
-.profit-strip    { text-align:center;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;margin-top:12px }
-.loss-strip      { text-align:center;padding:14px;background:#fef2f2;border:1px solid #fecaca;border-radius:4px;margin-top:12px }
 .empty-note      { padding:8px 14px 8px 20px;font-size:12px;color:#9ca3af;font-style:italic;border-bottom:1px solid #f3f4f6 }
+
+/* ── Print-only statement (mirrors classic CA/Tally format, same as Balance Sheet) ── */
+#printArea { display:none }
+.ta-print { font-family:'Times New Roman',Georgia,serif; color:#000; background:#fff; padding:24px 30px; }
+.ta-print-firm     { text-align:center; margin-bottom:14px; }
+.ta-print-firmname { font-size:15px; font-weight:700; }
+.ta-print-addr     { font-size:11px; line-height:1.5; }
+.ta-print-email    { font-size:11px; display:inline-block; border-bottom:1px solid #000; padding-bottom:1px; margin-top:2px; }
+.ta-print-title    { font-size:14px; font-weight:700; text-align:center; margin-top:10px; }
+.ta-print-period   { font-size:11px; text-align:center; margin-top:1px; margin-bottom:14px; }
+.ta-print-table    { width:100%; border-collapse:collapse; border:1px solid #000; font-size:11.5px; }
+.ta-print-table td { padding:3px 8px; vertical-align:top; }
+.ta-print-table .ta-col-l { width:50%; border-right:1px solid #000; }
+.ta-print-hdr-row td { border-bottom:1px solid #000; font-weight:700; padding:5px 8px; }
+.ta-print-hdr-row .ta-hdr-label { letter-spacing:2px; }
+.ta-row td      { padding-left:18px; }
+.ta-row .ta-amt { text-align:right; white-space:nowrap; }
+.ta-transfer-row td      { font-weight:700; padding-left:18px; }
+.ta-transfer-row .ta-amt { text-align:right; white-space:nowrap; }
+.ta-print-total-row td { border-top:1px solid #000; font-weight:700; padding:6px 8px; }
+.ta-print-total-row .ta-amt { text-align:right; white-space:nowrap; }
+.ta-empty { color:#666; font-style:italic; font-size:11px; padding-left:18px; }
 @media print {
-    .header,.sidebar,.section-header button,.info-banner { display:none!important }
-    .content-area { padding:0!important }
-    .stmt-wrap { border:1px solid #000 }
+    body * { visibility:hidden }
+    #printArea, #printArea * { visibility:visible }
+    #printArea { display:block!important; position:absolute; left:0; top:0; width:100%; }
 }
+@media screen { #printArea { display:none!important } }
 </style>
 </head>
 <body>
+<div id="printArea"><div class="ta-print" id="taPrintContent"></div></div>
 <div class="app-container">
     <header class="header">
         <div class="logo-section">
@@ -62,7 +85,7 @@
                 <div style="display:flex;gap:8px;align-items:center">
                     <button class="btn btn-secondary btn-sm" onclick="window.location.href='https://shreefinserv-office.github.io/GSTaxOfy/pages/Reports/profitability.html'"><i class="fas fa-arrow-left"></i> Back</button>
                     <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff"></select>
-                    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printTradingAccount()"><i class="fas fa-print"></i> Print</button>
                 </div>
             </div>
 
@@ -130,6 +153,7 @@
 <script src="../../js/layout.js"></script>
 <script>
 let firmData = {};
+let lastTAData = null; // { expenses, income, grossProfit, p } — captured by renderStatement(), used by printTradingAccount()
 
 function buildFYOptions(selectId) {
     const sel = document.getElementById(selectId);
@@ -156,7 +180,8 @@ function fyToPeriod(fy) {
 }
 
 function fmt(n) {
-    return '₹ ' + Math.abs(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const sign = n < 0 ? '-' : '';
+    return sign + '₹ ' + Math.abs(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 (async () => {
@@ -216,6 +241,8 @@ async function loadData() {
 }
 
 function renderStatement(expenses, income, totalExp, totalInc, grossProfit, p) {
+    lastTAData = { expenses, income, grossProfit, p }; // for printTradingAccount()
+
     const grandTotal = Math.max(totalExp + Math.max(grossProfit,0), totalInc + Math.max(-grossProfit,0));
 
     const drRows = expenses.map(r =>
@@ -240,25 +267,81 @@ function renderStatement(expenses, income, totalExp, totalInc, grossProfit, p) {
             </div>
             <div class="stmt-grid">
                 <div class="stmt-side">
-                    <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
-                    ${drRows}
-                    ${gpRow}${glRow}
+                    <div class="stmt-side-rows">
+                        <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
+                        ${drRows}
+                        ${gpRow}${glRow}
+                    </div>
                     <div class="stmt-total"><span>Total</span><span>${fmt(grandTotal)}</span></div>
                 </div>
                 <div class="stmt-side stmt-divider">
-                    <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
-                    ${crRows}
-                    ${grossProfit < 0 ? `<div class="transfer-row transfer-row-dr"><span>Gross Loss c/d</span><span>${fmt(-grossProfit)}</span></div>` : ''}
+                    <div class="stmt-side-rows">
+                        <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
+                        ${crRows}
+                        ${grossProfit < 0 ? `<div class="transfer-row transfer-row-dr"><span>Gross Loss c/d</span><span>${fmt(-grossProfit)}</span></div>` : ''}
+                    </div>
                     <div class="stmt-total"><span>Total</span><span>${fmt(grandTotal)}</span></div>
                 </div>
             </div>
-        </div>
-        <div class="${grossProfit>=0?'profit-strip':'loss-strip'}">
-            <div style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">
-                ${grossProfit>=0?'Gross Profit':'Gross Loss'} transferred to Profit & Loss A/c
-            </div>
-            <div style="font-size:24px;font-weight:800;color:${grossProfit>=0?'#166534':'#991b1b'};margin-top:4px">${fmt(grossProfit)}</div>
         </div>`;
+}
+
+function fmtPlain(n) { const sign = n < 0 ? '-' : ''; return sign + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function printTradingAccount() {
+    if (!lastTAData) { showToast('Nothing to print yet.', 'error'); return; }
+    const { expenses, income, grossProfit, p } = lastTAData;
+
+    const drRowsHtml = expenses.map(r =>
+        `<tr class="ta-row"><td>${r.name}</td><td><span class="ta-amt">${fmtPlain(r.amount)}</span></td></tr>`
+    ).join('') || `<tr><td class="ta-empty" colspan="2">No direct expenses recorded.</td></tr>`;
+
+    const gpRowHtml = grossProfit > 0
+        ? `<tr class="ta-transfer-row"><td>Gross Profit c/d</td><td><span class="ta-amt">${fmtPlain(grossProfit)}</span></td></tr>` : '';
+    const glRowHtmlDr = grossProfit < 0
+        ? `<tr class="ta-transfer-row"><td>Gross Loss c/d</td><td><span class="ta-amt">${fmtPlain(-grossProfit)}</span></td></tr>` : '';
+
+    const crRowsHtml = income.map(r =>
+        `<tr class="ta-row"><td>${r.name}</td><td><span class="ta-amt">${fmtPlain(r.amount)}</span></td></tr>`
+    ).join('') || `<tr><td class="ta-empty" colspan="2">No direct income recorded.</td></tr>`;
+    const glRowHtmlCr = grossProfit < 0
+        ? `<tr class="ta-transfer-row"><td>Gross Loss c/d</td><td><span class="ta-amt">${fmtPlain(-grossProfit)}</span></td></tr>` : '';
+
+    const grandTotal = Math.max(
+        expenses.reduce((s,r)=>s+r.amount,0) + Math.max(grossProfit,0),
+        income.reduce((s,r)=>s+r.amount,0) + Math.max(-grossProfit,0)
+    );
+
+    const addrLines = (firmData.firm_address || '').split('\n').filter(Boolean);
+
+    document.getElementById('taPrintContent').innerHTML = `
+        <div class="ta-print-firm">
+            <div class="ta-print-firmname">${firmData.firm_name || ''}</div>
+            ${addrLines.map(l => `<div class="ta-print-addr">${l}</div>`).join('')}
+            ${firmData.email_id ? `<div class="ta-print-email">E-Mail : ${firmData.email_id}</div>` : ''}
+        </div>
+        <div class="ta-print-title">Trading Account</div>
+        <div class="ta-print-period">${p.period}</div>
+        <table class="ta-print-table">
+            <tr class="ta-print-hdr-row">
+                <td class="ta-col-l"><span class="ta-hdr-label">Particulars</span></td>
+                <td><span class="ta-hdr-label">Particulars</span></td>
+            </tr>
+            <tr>
+                <td class="ta-col-l" style="border-right:1px solid #000;padding:0">
+                    <table style="width:100%;border-collapse:collapse">${drRowsHtml}${gpRowHtml}${glRowHtmlDr}</table>
+                </td>
+                <td style="padding:0">
+                    <table style="width:100%;border-collapse:collapse">${crRowsHtml}${glRowHtmlCr}</table>
+                </td>
+            </tr>
+            <tr class="ta-print-total-row">
+                <td class="ta-col-l">Total<span class="ta-amt" style="float:right">${fmtPlain(grandTotal)}</span></td>
+                <td>Total<span class="ta-amt" style="float:right">${fmtPlain(grandTotal)}</span></td>
+            </tr>
+        </table>`;
+
+    setTimeout(() => window.print(), 200);
 }
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
