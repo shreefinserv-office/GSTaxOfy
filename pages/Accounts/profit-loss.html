@@ -13,7 +13,9 @@
 .stmt-firm-name { font-size:17px;font-weight:800;color:#1f2937 }
 .stmt-title     { font-size:14px;font-weight:700;color:#1f2937;margin-top:4px }
 .stmt-period    { font-size:12px;color:#374151;margin-top:1px }
-.stmt-grid      { display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d1d5db }
+.stmt-grid      { display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d1d5db;align-items:stretch }
+.stmt-side      { display:flex;flex-direction:column }
+.stmt-side-rows { flex:1 }
 .stmt-col-hdr   { display:grid;grid-template-columns:1fr auto;padding:7px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#fff;background:#374151 }
 .stmt-row       { display:grid;grid-template-columns:1fr auto;padding:7px 14px 7px 20px;font-size:13px;border-bottom:1px solid #f3f4f6 }
 .stmt-row-name  { color:#374151 }
@@ -24,14 +26,38 @@
 .tr-profit      { color:#166534 }
 .tr-loss        { color:#991b1b }
 .empty-note     { padding:8px 14px 8px 20px;font-size:12px;color:#9ca3af;font-style:italic;border-bottom:1px solid #f3f4f6 }
-.net-strip      { text-align:center;padding:14px;border-radius:4px;margin-top:12px }
+
+/* ── Print-only statement (mirrors classic CA/Tally format, same as Balance Sheet) ── */
+#printArea { display:none }
+.pl-print { font-family:'Times New Roman',Georgia,serif; color:#000; background:#fff; padding:24px 30px; }
+.pl-print-firm     { text-align:center; margin-bottom:14px; }
+.pl-print-firmname { font-size:15px; font-weight:700; }
+.pl-print-addr     { font-size:11px; line-height:1.5; }
+.pl-print-email    { font-size:11px; display:inline-block; border-bottom:1px solid #000; padding-bottom:1px; margin-top:2px; }
+.pl-print-title    { font-size:14px; font-weight:700; text-align:center; margin-top:10px; }
+.pl-print-period   { font-size:11px; text-align:center; margin-top:1px; margin-bottom:14px; }
+.pl-print-table    { width:100%; border-collapse:collapse; border:1px solid #000; font-size:11.5px; }
+.pl-print-table td { padding:3px 8px; vertical-align:top; }
+.pl-print-table .pl-col-l { width:50%; border-right:1px solid #000; }
+.pl-print-hdr-row td { border-bottom:1px solid #000; font-weight:700; padding:5px 8px; }
+.pl-print-hdr-row .pl-hdr-label { letter-spacing:2px; }
+.pl-row td      { padding-left:18px; }
+.pl-row .pl-amt { text-align:right; white-space:nowrap; }
+.pl-transfer-row td      { font-weight:700; padding-left:18px; }
+.pl-transfer-row .pl-amt { text-align:right; white-space:nowrap; }
+.pl-print-total-row td { border-top:1px solid #000; font-weight:700; padding:6px 8px; }
+.pl-print-total-row .pl-amt { text-align:right; white-space:nowrap; }
+.pl-empty { color:#666; font-style:italic; font-size:11px; padding-left:18px; }
 @media print {
-    .header,.sidebar,.section-header button { display:none!important }
-    .content-area { padding:0!important }
+    body * { visibility:hidden }
+    #printArea, #printArea * { visibility:visible }
+    #printArea { display:block!important; position:absolute; left:0; top:0; width:100%; }
 }
+@media screen { #printArea { display:none!important } }
 </style>
 </head>
 <body>
+<div id="printArea"><div class="pl-print" id="plPrintContent"></div></div>
 <div class="app-container">
     <header class="header">
         <div class="logo-section">
@@ -56,7 +82,7 @@
                 <div style="display:flex;gap:8px;align-items:center">
                     <button class="btn btn-secondary btn-sm" onclick="window.location.href='https://shreefinserv-office.github.io/GSTaxOfy/pages/Reports/profitability.html'"><i class="fas fa-arrow-left"></i> Back</button>
                     <select id="filterFY" onchange="loadData()" style="padding:7px 12px;border:1.5px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff"></select>
-                    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printProfitLoss()"><i class="fas fa-print"></i> Print</button>
                 </div>
             </div>
 
@@ -124,6 +150,7 @@
 <script src="../../js/layout.js"></script>
 <script>
 let firmData = {};
+let lastPLData = null; // { expenses, income, grossProfit, totalExp, totalInc, netProfit, p } — used by printProfitLoss()
 
 function buildFYOptions(selectId) {
     const sel = document.getElementById(selectId);
@@ -141,7 +168,7 @@ function fyToPeriod(fy) {
     const s2 = String(sy).slice(-2), e2 = String(ey).slice(-2);
     return { period:`1-Apr-${s2} to 31-Mar-${e2}`, startDate:`${sy}-04-01`, endDate:`${ey}-03-31` };
 }
-function fmt(n) { return '₹ ' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmt(n) { const sign = n < 0 ? '-' : ''; return sign + '₹ ' + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
 (async () => {
     const profile = await initLayout();
@@ -205,14 +232,16 @@ async function loadData() {
 }
 
 function renderStatement(expenses, income, grossProfit, totalExp, totalInc, netProfit, p) {
+    lastPLData = { expenses, income, grossProfit, totalExp, totalInc, netProfit, p }; // for printProfitLoss()
+
     const drBase = (grossProfit<0?-grossProfit:0) + totalExp + (netProfit>0?netProfit:0);
     const crBase = (grossProfit>0?grossProfit:0) + totalInc + (netProfit<0?-netProfit:0);
     const grandTotal = Math.max(drBase, crBase);
 
     const gpTransferDr = grossProfit < 0
-        ? `<div class="transfer-row tr-loss"><span>Gross Loss b/d (from Trading A/c)</span><span>${fmt(-grossProfit)}</span></div>` : '';
+        ? `<div class="transfer-row tr-loss"><span>Gross Loss b/d</span><span>${fmt(-grossProfit)}</span></div>` : '';
     const gpTransferCr = grossProfit > 0
-        ? `<div class="transfer-row tr-profit"><span>Gross Profit b/d (from Trading A/c)</span><span>${fmt(grossProfit)}</span></div>` : '';
+        ? `<div class="transfer-row tr-profit"><span>Gross Profit b/d</span><span>${fmt(grossProfit)}</span></div>` : '';
 
     const drRows = expenses.map(r =>
         `<div class="stmt-row"><span class="stmt-row-name">${r.name}</span><span class="stmt-row-amt">${fmt(r.amount)}</span></div>`
@@ -223,9 +252,9 @@ function renderStatement(expenses, income, grossProfit, totalExp, totalInc, netP
     ).join('') || '<div class="empty-note">No indirect income recorded.</div>';
 
     const npRowDr = netProfit > 0
-        ? `<div class="transfer-row tr-profit"><span>Net Profit (transferred to Capital A/c)</span><span>${fmt(netProfit)}</span></div>` : '';
+        ? `<div class="transfer-row tr-profit"><span>Net Profit</span><span>${fmt(netProfit)}</span></div>` : '';
     const nlRowCr = netProfit < 0
-        ? `<div class="transfer-row tr-loss"><span>Net Loss (transferred to Capital A/c)</span><span>${fmt(-netProfit)}</span></div>` : '';
+        ? `<div class="transfer-row tr-loss"><span>Net Loss</span><span>${fmt(-netProfit)}</span></div>` : '';
 
     document.getElementById('stmtContainer').innerHTML = `
         <div class="stmt-wrap">
@@ -236,27 +265,85 @@ function renderStatement(expenses, income, grossProfit, totalExp, totalInc, netP
             </div>
             <div class="stmt-grid">
                 <div class="stmt-side">
-                    <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
-                    ${gpTransferDr}
-                    ${drRows}
-                    ${npRowDr}
+                    <div class="stmt-side-rows">
+                        <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
+                        ${gpTransferDr}
+                        ${drRows}
+                        ${npRowDr}
+                    </div>
                     <div class="stmt-total"><span>Total</span><span>${fmt(grandTotal)}</span></div>
                 </div>
                 <div class="stmt-side stmt-divider">
-                    <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
-                    ${gpTransferCr}
-                    ${crRows}
-                    ${nlRowCr}
+                    <div class="stmt-side-rows">
+                        <div class="stmt-col-hdr"><span>Particulars</span><span>Amount (₹)</span></div>
+                        ${gpTransferCr}
+                        ${crRows}
+                        ${nlRowCr}
+                    </div>
                     <div class="stmt-total"><span>Total</span><span>${fmt(grandTotal)}</span></div>
                 </div>
             </div>
-        </div>
-        <div class="net-strip" style="background:${netProfit>=0?'#f0fdf4':'#fef2f2'};border:1px solid ${netProfit>=0?'#bbf7d0':'#fecaca'}">
-            <div style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.5px">
-                ${netProfit>=0?'Net Profit':'Net Loss'} for the year — transferred to Capital Account
-            </div>
-            <div style="font-size:24px;font-weight:800;color:${netProfit>=0?'#166534':'#991b1b'};margin-top:4px">${fmt(netProfit)}</div>
         </div>`;
+}
+
+function fmtPlain(n) { const sign = n < 0 ? '-' : ''; return sign + Math.abs(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function printProfitLoss() {
+    if (!lastPLData) { showToast('Nothing to print yet.', 'error'); return; }
+    const { expenses, income, grossProfit, totalExp, totalInc, netProfit, p } = lastPLData;
+
+    const drBase = (grossProfit<0?-grossProfit:0) + totalExp + (netProfit>0?netProfit:0);
+    const crBase = (grossProfit>0?grossProfit:0) + totalInc + (netProfit<0?-netProfit:0);
+    const grandTotal = Math.max(drBase, crBase);
+
+    const gpTransferDrHtml = grossProfit < 0
+        ? `<tr class="pl-transfer-row"><td>Gross Loss b/d</td><td><span class="pl-amt">${fmtPlain(-grossProfit)}</span></td></tr>` : '';
+    const gpTransferCrHtml = grossProfit > 0
+        ? `<tr class="pl-transfer-row"><td>Gross Profit b/d</td><td><span class="pl-amt">${fmtPlain(grossProfit)}</span></td></tr>` : '';
+
+    const drRowsHtml = expenses.map(r =>
+        `<tr class="pl-row"><td>${r.name}</td><td><span class="pl-amt">${fmtPlain(r.amount)}</span></td></tr>`
+    ).join('') || `<tr><td class="pl-empty" colspan="2">No indirect expenses recorded.</td></tr>`;
+
+    const crRowsHtml = income.map(r =>
+        `<tr class="pl-row"><td>${r.name}</td><td><span class="pl-amt">${fmtPlain(r.amount)}</span></td></tr>`
+    ).join('') || `<tr><td class="pl-empty" colspan="2">No indirect income recorded.</td></tr>`;
+
+    const npRowDrHtml = netProfit > 0
+        ? `<tr class="pl-transfer-row"><td>Net Profit</td><td><span class="pl-amt">${fmtPlain(netProfit)}</span></td></tr>` : '';
+    const nlRowCrHtml = netProfit < 0
+        ? `<tr class="pl-transfer-row"><td>Net Loss</td><td><span class="pl-amt">${fmtPlain(-netProfit)}</span></td></tr>` : '';
+
+    const addrLines = (firmData.firm_address || '').split('\n').filter(Boolean);
+
+    document.getElementById('plPrintContent').innerHTML = `
+        <div class="pl-print-firm">
+            <div class="pl-print-firmname">${firmData.firm_name || ''}</div>
+            ${addrLines.map(l => `<div class="pl-print-addr">${l}</div>`).join('')}
+            ${firmData.email_id ? `<div class="pl-print-email">E-Mail : ${firmData.email_id}</div>` : ''}
+        </div>
+        <div class="pl-print-title">Profit &amp; Loss Account</div>
+        <div class="pl-print-period">${p.period}</div>
+        <table class="pl-print-table">
+            <tr class="pl-print-hdr-row">
+                <td class="pl-col-l"><span class="pl-hdr-label">Particulars</span></td>
+                <td><span class="pl-hdr-label">Particulars</span></td>
+            </tr>
+            <tr>
+                <td class="pl-col-l" style="border-right:1px solid #000;padding:0">
+                    <table style="width:100%;border-collapse:collapse">${gpTransferDrHtml}${drRowsHtml}${npRowDrHtml}</table>
+                </td>
+                <td style="padding:0">
+                    <table style="width:100%;border-collapse:collapse">${gpTransferCrHtml}${crRowsHtml}${nlRowCrHtml}</table>
+                </td>
+            </tr>
+            <tr class="pl-print-total-row">
+                <td class="pl-col-l">Total<span class="pl-amt" style="float:right">${fmtPlain(grandTotal)}</span></td>
+                <td>Total<span class="pl-amt" style="float:right">${fmtPlain(grandTotal)}</span></td>
+            </tr>
+        </table>`;
+
+    setTimeout(() => window.print(), 200);
 }
 </script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('../../sw.js').catch(()=>{});}</script>
