@@ -221,7 +221,7 @@ async function loadData() {
         });
     }
 
-    const directIncome = [{ name:'Professional Receipts (Invoices)', amount:professionalReceipts }];
+    const directIncome = [{ name:'Professional Receipts', amount:professionalReceipts }];
     const directExpenses = [];
     (accounts||[]).forEach(acc => {
         const b = ab[acc.id]||{dr:0,cr:0};
